@@ -245,8 +245,8 @@ const about: About = {
 const blog: Blog = {
   path: "/blog",
   label: "Blog",
-  title: "Writing about frontend and tech...",
-  description: `Read what ${person.name} has been up to recently`,
+  title: "Stories, awards, and student highlights",
+  description: `Press and school stories featuring ${person.name}`,
   // Create new blog posts by adding a new .mdx file to app/blog/posts
   // All posts will be listed on the /blog route
 };
@@ -265,48 +265,71 @@ const gallery: Gallery = {
   label: "Gallery",
   title: `Photo gallery – ${person.name}`,
   description: `A photo collection by ${person.name}`,
-  // Images by https://lorant.one
-  // These are placeholder images, replace with your own
   images: [
     {
-      src: "/images/gallery/horizontal-1.jpg",
-      alt: "image",
-      orientation: "horizontal",
-    },
-    {
-      src: "/images/gallery/vertical-4.jpg",
-      alt: "image",
+      src: "/images/gallery/z7859524825595_4470905098311f7ae5cc5a336efe2f25.jpg",
+      alt: "Binh Phan gallery photo 01",
       orientation: "vertical",
     },
     {
-      src: "/images/gallery/horizontal-3.jpg",
-      alt: "image",
+      src: "/images/gallery/z7859524844801_087189511a432e6466e7b2fb97dd65aa.jpg",
+      alt: "Binh Phan gallery photo 02",
       orientation: "horizontal",
     },
     {
-      src: "/images/gallery/vertical-1.jpg",
-      alt: "image",
-      orientation: "vertical",
-    },
-    {
-      src: "/images/gallery/vertical-2.jpg",
-      alt: "image",
-      orientation: "vertical",
-    },
-    {
-      src: "/images/gallery/horizontal-2.jpg",
-      alt: "image",
+      src: "/images/gallery/z7859524878759_748b0733c83b9bc8390b1f05d0e539d0.jpg",
+      alt: "Binh Phan gallery photo 03",
       orientation: "horizontal",
     },
     {
-      src: "/images/gallery/horizontal-4.jpg",
-      alt: "image",
+      src: "/images/gallery/z7859524838463_e2c022bbc42928108f45d63fee11e2ed.jpg",
+      alt: "Binh Phan gallery photo 04",
       orientation: "horizontal",
     },
     {
-      src: "/images/gallery/vertical-3.jpg",
-      alt: "image",
-      orientation: "vertical",
+      src: "/images/gallery/z7859524846018_d8f4845468acfbff667240b5f6d63e5c.jpg",
+      alt: "Binh Phan gallery photo 05",
+      orientation: "horizontal",
+    },
+    {
+      src: "/images/gallery/z7859524853603_ca9cf8035fe460357cf0ac9e0ccb5e32.jpg",
+      alt: "Binh Phan gallery photo 06",
+      orientation: "horizontal",
+    },
+    {
+      src: "/images/gallery/z7859524862084_3a29c33ebfc4a8cdca889eb0fc4be462.jpg",
+      alt: "Binh Phan gallery photo 07",
+      orientation: "horizontal",
+    },
+    {
+      src: "/images/gallery/z7859524864805_b56e4ff6f7dd9b4ff96140c438fa6a2a.jpg",
+      alt: "Binh Phan gallery photo 08",
+      orientation: "horizontal",
+    },
+    {
+      src: "/images/gallery/z7859524860352_00e5dd919ce584c5f3dc63c2a8710208.jpg",
+      alt: "Binh Phan gallery photo 09",
+      orientation: "horizontal",
+    },
+    {
+      src: "/images/gallery/z7859524877906_1f291ba5f0eb1c01366587c7febcf69b.jpg",
+      alt: "Binh Phan gallery photo 10",
+      orientation: "horizontal",
+    },
+    {
+      src: "/images/gallery/z7859524877775_caa74e56a8c4b5fa00e904e117d67f36.jpg",
+      alt: "Binh Phan gallery photo 11",
+      orientation: "horizontal",
+    },
+    {
+      src: "/images/gallery/z7859524895461_15c74614c521cb536ec6797beeff180a.jpg",
+      alt: "Binh Phan gallery photo 12",
+      orientation: "horizontal",
+    },
+    {
+      src: "/images/gallery/z7859524889574_66707b128e29b7a04dc218c632e94317.jpg",
+      alt: "Binh Phan gallery photo 13",
+      orientation: "horizontal",
     },
   ],
 };
