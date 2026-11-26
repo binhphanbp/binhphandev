@@ -77,7 +77,7 @@ export default function About() {
           <TableOfContents structure={structure} about={about} />
         </Column>
       )}
-      <Row fillWidth s={{ direction: "column"}} horizontal="center">
+      <Row fillWidth s={{ direction: "column" }} horizontal="center">
         {about.avatar.display && (
           <Column
             className={styles.avatar}
@@ -93,7 +93,15 @@ export default function About() {
             flex={3}
             horizontal="center"
           >
-            <Avatar src={person.avatar} size="xl" />
+            <div
+              data-swarm-hero="true"
+              data-swarm-target="about-avatar"
+              data-swarm-inspect="true"
+              data-swarm-label="Profile · Avatar"
+              style={{ display: "inline-flex" }}
+            >
+              <Avatar src={person.avatar} size="xl" />
+            </div>
             <Row gap="8" vertical="center">
               <Icon onBackground="accent-weak" name="globe" />
               {person.location}
@@ -142,16 +150,33 @@ export default function About() {
                 />
               </Row>
             )}
-            <Heading className={styles.textAlign} variant="display-strong-xl">
-              {person.name}
-            </Heading>
-            <Text
-              className={styles.textAlign}
-              variant="display-default-xs"
-              onBackground="neutral-weak"
+            <div
+              data-swarm-hero="true"
+              data-swarm-target="about-heading"
+              data-swarm-kind="typewriter"
+              data-swarm-inspect="true"
+              data-swarm-label="About · NameHeading"
+              style={{ width: "100%" }}
             >
-              {person.role}
-            </Text>
+              <Heading className={styles.textAlign} variant="display-strong-xl">
+                {person.name}
+              </Heading>
+            </div>
+            <div
+              data-swarm-hero="true"
+              data-swarm-target="about-role"
+              data-swarm-inspect="true"
+              data-swarm-label="About · Role"
+              style={{ width: "100%" }}
+            >
+              <Text
+                className={styles.textAlign}
+                variant="display-default-xs"
+                onBackground="neutral-weak"
+              >
+                {person.role}
+              </Text>
+            </div>
             {social.length > 0 && (
               <Row
                 className={styles.blockAlign}
@@ -164,42 +189,49 @@ export default function About() {
                 data-border="rounded"
               >
                 {social
-                      .filter((item) => item.essential)
-                      .map(
-                  (item) =>
-                    item.link && (
-                      <React.Fragment key={item.name}>
-                        <Row s={{ hide: true }}>
-                          <Button
-                            key={item.name}
-                            href={item.link}
-                            prefixIcon={item.icon}
-                            label={item.name}
-                            size="s"
-                            weight="default"
-                            variant="secondary"
-                          />
-                        </Row>
-                        <Row hide s={{ hide: false }}>
-                          <IconButton
-                            size="l"
-                            key={`${item.name}-icon`}
-                            href={item.link}
-                            icon={item.icon}
-                            variant="secondary"
-                          />
-                        </Row>
-                      </React.Fragment>
-                    ),
-                )}
+                  .filter((item) => item.essential)
+                  .map(
+                    (item) =>
+                      item.link && (
+                        <React.Fragment key={item.name}>
+                          <Row s={{ hide: true }}>
+                            <Button
+                              key={item.name}
+                              href={item.link}
+                              prefixIcon={item.icon}
+                              label={item.name}
+                              size="s"
+                              weight="default"
+                              variant="secondary"
+                            />
+                          </Row>
+                          <Row hide s={{ hide: false }}>
+                            <IconButton
+                              size="l"
+                              key={`${item.name}-icon`}
+                              href={item.link}
+                              icon={item.icon}
+                              variant="secondary"
+                            />
+                          </Row>
+                        </React.Fragment>
+                      ),
+                  )}
               </Row>
             )}
           </Column>
 
           {about.intro.display && (
-            <Column textVariant="body-default-l" fillWidth gap="m" marginBottom="xl">
-              {about.intro.description}
-            </Column>
+            <div
+              data-swarm-target="about-intro"
+              data-swarm-inspect="true"
+              data-swarm-label="About · Introduction"
+              style={{ width: "100%" }}
+            >
+              <Column textVariant="body-default-l" fillWidth gap="m" marginBottom="xl">
+                {about.intro.description}
+              </Column>
+            </div>
           )}
 
           {about.work.display && (
@@ -209,53 +241,62 @@ export default function About() {
               </Heading>
               <Column fillWidth gap="l" marginBottom="40">
                 {about.work.experiences.map((experience, index) => (
-                  <Column key={`${experience.company}-${experience.role}-${index}`} fillWidth>
-                    <Row fillWidth horizontal="between" vertical="end" marginBottom="4">
-                      <Text id={experience.company} variant="heading-strong-l">
-                        {experience.company}
+                  <div
+                    key={`${experience.company}-${experience.role}-${index}`}
+                    data-swarm-target="experience-card"
+                    data-swarm-group="experiences"
+                    data-swarm-inspect="true"
+                    data-swarm-label={`Experience · ${experience.company}`}
+                    style={{ width: "100%" }}
+                  >
+                    <Column fillWidth>
+                      <Row fillWidth horizontal="between" vertical="end" marginBottom="4">
+                        <Text id={experience.company} variant="heading-strong-l">
+                          {experience.company}
+                        </Text>
+                        <Text variant="heading-default-xs" onBackground="neutral-weak">
+                          {experience.timeframe}
+                        </Text>
+                      </Row>
+                      <Text variant="body-default-s" onBackground="brand-weak" marginBottom="m">
+                        {experience.role}
                       </Text>
-                      <Text variant="heading-default-xs" onBackground="neutral-weak">
-                        {experience.timeframe}
-                      </Text>
-                    </Row>
-                    <Text variant="body-default-s" onBackground="brand-weak" marginBottom="m">
-                      {experience.role}
-                    </Text>
-                    <Column as="ul" gap="16">
-                      {experience.achievements.map(
-                        (achievement: React.ReactNode, index: number) => (
-                          <Text
-                            as="li"
-                            variant="body-default-m"
-                            key={`${experience.company}-${index}`}
-                          >
-                            {achievement}
-                          </Text>
-                        ),
+                      <Column as="ul" gap="16">
+                        {experience.achievements.map(
+                          (achievement: React.ReactNode, index: number) => (
+                            <Text
+                              as="li"
+                              variant="body-default-m"
+                              key={`${experience.company}-${index}`}
+                            >
+                              {achievement}
+                            </Text>
+                          ),
+                        )}
+                      </Column>
+                      {experience.images && experience.images.length > 0 && (
+                        <Row fillWidth paddingTop="m" paddingLeft="40" gap="12" wrap>
+                          {experience.images.map((image, index) => (
+                            <Row
+                              key={index}
+                              border="neutral-medium"
+                              radius="m"
+                              minWidth={image.width}
+                              height={image.height}
+                            >
+                              <Media
+                                enlarge
+                                radius="m"
+                                sizes={image.width.toString()}
+                                alt={image.alt}
+                                src={image.src}
+                              />
+                            </Row>
+                          ))}
+                        </Row>
                       )}
                     </Column>
-                    {experience.images && experience.images.length > 0 && (
-                      <Row fillWidth paddingTop="m" paddingLeft="40" gap="12" wrap>
-                        {experience.images.map((image, index) => (
-                          <Row
-                            key={index}
-                            border="neutral-medium"
-                            radius="m"
-                            minWidth={image.width}
-                            height={image.height}
-                          >
-                            <Media
-                              enlarge
-                              radius="m"
-                              sizes={image.width.toString()}
-                              alt={image.alt}
-                              src={image.src}
-                            />
-                          </Row>
-                        ))}
-                      </Row>
-                    )}
-                  </Column>
+                  </div>
                 ))}
               </Column>
             </>
@@ -268,14 +309,23 @@ export default function About() {
               </Heading>
               <Column fillWidth gap="l" marginBottom="40">
                 {about.studies.institutions.map((institution, index) => (
-                  <Column key={`${institution.name}-${index}`} fillWidth gap="4">
-                    <Text id={institution.name} variant="heading-strong-l">
-                      {institution.name}
-                    </Text>
-                    <Text variant="heading-default-xs" onBackground="neutral-weak">
-                      {institution.description}
-                    </Text>
-                  </Column>
+                  <div
+                    key={`${institution.name}-${index}`}
+                    data-swarm-target="study-card"
+                    data-swarm-group="studies"
+                    data-swarm-inspect="true"
+                    data-swarm-label={`Education · ${institution.name.slice(0, 24)}`}
+                    style={{ width: "100%" }}
+                  >
+                    <Column fillWidth gap="4">
+                      <Text id={institution.name} variant="heading-strong-l">
+                        {institution.name}
+                      </Text>
+                      <Text variant="heading-default-xs" onBackground="neutral-weak">
+                        {institution.description}
+                      </Text>
+                    </Column>
+                  </div>
                 ))}
               </Column>
             </>
@@ -293,44 +343,53 @@ export default function About() {
               </Heading>
               <Column fillWidth gap="l">
                 {about.technical.skills.map((skill, index) => (
-                  <Column key={`${skill}-${index}`} fillWidth gap="4">
-                    <Text id={skill.title} variant="heading-strong-l">
-                      {skill.title}
-                    </Text>
-                    <Text variant="body-default-m" onBackground="neutral-weak">
-                      {skill.description}
-                    </Text>
-                    {skill.tags && skill.tags.length > 0 && (
-                      <Row wrap gap="8" paddingTop="8">
-                        {skill.tags.map((tag, tagIndex) => (
-                          <Tag key={`${skill.title}-${tagIndex}`} size="l" prefixIcon={tag.icon}>
-                            {tag.name}
-                          </Tag>
-                        ))}
-                      </Row>
-                    )}
-                    {skill.images && skill.images.length > 0 && (
-                      <Row fillWidth paddingTop="m" gap="12" wrap>
-                        {skill.images.map((image, index) => (
-                          <Row
-                            key={index}
-                            border="neutral-medium"
-                            radius="m"
-                            minWidth={image.width}
-                            height={image.height}
-                          >
-                            <Media
-                              enlarge
+                  <div
+                    key={`${skill.title}-${index}`}
+                    data-swarm-target="skill-card"
+                    data-swarm-group="skills"
+                    data-swarm-inspect="true"
+                    data-swarm-label={`SkillGroup · ${skill.title}`}
+                    style={{ width: "100%" }}
+                  >
+                    <Column fillWidth gap="4">
+                      <Text id={skill.title} variant="heading-strong-l">
+                        {skill.title}
+                      </Text>
+                      <Text variant="body-default-m" onBackground="neutral-weak">
+                        {skill.description}
+                      </Text>
+                      {skill.tags && skill.tags.length > 0 && (
+                        <Row wrap gap="8" paddingTop="8">
+                          {skill.tags.map((tag, tagIndex) => (
+                            <Tag key={`${skill.title}-${tagIndex}`} size="l" prefixIcon={tag.icon}>
+                              {tag.name}
+                            </Tag>
+                          ))}
+                        </Row>
+                      )}
+                      {skill.images && skill.images.length > 0 && (
+                        <Row fillWidth paddingTop="m" gap="12" wrap>
+                          {skill.images.map((image, index) => (
+                            <Row
+                              key={index}
+                              border="neutral-medium"
                               radius="m"
-                              sizes={image.width.toString()}
-                              alt={image.alt}
-                              src={image.src}
-                            />
-                          </Row>
-                        ))}
-                      </Row>
-                    )}
-                  </Column>
+                              minWidth={image.width}
+                              height={image.height}
+                            >
+                              <Media
+                                enlarge
+                                radius="m"
+                                sizes={image.width.toString()}
+                                alt={image.alt}
+                                src={image.src}
+                              />
+                            </Row>
+                          ))}
+                        </Row>
+                      )}
+                    </Column>
+                  </div>
                 ))}
               </Column>
             </>

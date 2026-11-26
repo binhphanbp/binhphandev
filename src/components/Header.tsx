@@ -5,9 +5,10 @@ import { useEffect, useState } from "react";
 
 import { Fade, Flex, Line, Row, ToggleButton } from "@once-ui-system/core";
 
-import { routes, display, person, about, blog, work, gallery } from "@/resources";
-import { ThemeToggle } from "./ThemeToggle";
+import { about, blog, display, gallery, person, routes, work } from "@/resources";
 import styles from "./Header.module.scss";
+import { ThemeToggle } from "./ThemeToggle";
+import { useSwarm } from "./swarm";
 
 type TimeDisplayProps = {
   timeZone: string;
@@ -44,6 +45,8 @@ export default TimeDisplay;
 
 export const Header = () => {
   const pathname = usePathname() ?? "";
+  const { isRebuilding, blueprintMode, startFullRebuild, stopAndGoLive, toggleBlueprintMode } =
+    useSwarm();
 
   return (
     <>
@@ -76,104 +79,134 @@ export const Header = () => {
           {display.location && <Row s={{ hide: true }}>{person.location}</Row>}
         </Row>
         <Row fillWidth horizontal="center">
-          <Row
-            background="page"
-            border="neutral-alpha-weak"
-            radius="m-4"
-            shadow="l"
-            padding="4"
-            horizontal="center"
-            zIndex={1}
+          <div
+            data-swarm-target="nav-pill"
+            data-swarm-label="Header.tsx · NavPill"
+            style={{ display: "inline-flex" }}
           >
-            <Row gap="4" vertical="center" textVariant="body-default-s" suppressHydrationWarning>
-              {routes["/"] && (
-                <ToggleButton prefixIcon="home" href="/" selected={pathname === "/"} />
-              )}
-              <Line background="neutral-alpha-medium" vert maxHeight="24" />
-              {routes["/about"] && (
-                <>
-                  <Row s={{ hide: true }}>
-                    <ToggleButton
-                      prefixIcon="person"
-                      href="/about"
-                      label={about.label}
-                      selected={pathname === "/about"}
-                    />
-                  </Row>
-                  <Row hide s={{ hide: false }}>
-                    <ToggleButton
-                      prefixIcon="person"
-                      href="/about"
-                      selected={pathname === "/about"}
-                    />
-                  </Row>
-                </>
-              )}
-              {routes["/work"] && (
-                <>
-                  <Row s={{ hide: true }}>
-                    <ToggleButton
-                      prefixIcon="grid"
-                      href="/work"
-                      label={work.label}
-                      selected={pathname.startsWith("/work")}
-                    />
-                  </Row>
-                  <Row hide s={{ hide: false }}>
-                    <ToggleButton
-                      prefixIcon="grid"
-                      href="/work"
-                      selected={pathname.startsWith("/work")}
-                    />
-                  </Row>
-                </>
-              )}
-              {routes["/blog"] && (
-                <>
-                  <Row s={{ hide: true }}>
-                    <ToggleButton
-                      prefixIcon="book"
-                      href="/blog"
-                      label={blog.label}
-                      selected={pathname.startsWith("/blog")}
-                    />
-                  </Row>
-                  <Row hide s={{ hide: false }}>
-                    <ToggleButton
-                      prefixIcon="book"
-                      href="/blog"
-                      selected={pathname.startsWith("/blog")}
-                    />
-                  </Row>
-                </>
-              )}
-              {routes["/gallery"] && (
-                <>
-                  <Row s={{ hide: true }}>
-                    <ToggleButton
-                      prefixIcon="gallery"
-                      href="/gallery"
-                      label={gallery.label}
-                      selected={pathname.startsWith("/gallery")}
-                    />
-                  </Row>
-                  <Row hide s={{ hide: false }}>
-                    <ToggleButton
-                      prefixIcon="gallery"
-                      href="/gallery"
-                      selected={pathname.startsWith("/gallery")}
-                    />
-                  </Row>
-                </>
-              )}
-              {display.themeSwitcher && (
-                <>
-                  <Line background="neutral-alpha-medium" vert maxHeight="24" />
-                  <ThemeToggle />
-                </>
-              )}
+            <Row
+              background="page"
+              border="neutral-alpha-weak"
+              radius="m-4"
+              shadow="l"
+              padding="4"
+              horizontal="center"
+              zIndex={1}
+            >
+              <Row gap="4" vertical="center" textVariant="body-default-s" suppressHydrationWarning>
+                {routes["/"] && (
+                  <ToggleButton prefixIcon="home" href="/" selected={pathname === "/"} />
+                )}
+                <Line background="neutral-alpha-medium" vert maxHeight="24" />
+                {routes["/about"] && (
+                  <>
+                    <Row s={{ hide: true }}>
+                      <ToggleButton
+                        prefixIcon="person"
+                        href="/about"
+                        label={about.label}
+                        selected={pathname === "/about"}
+                      />
+                    </Row>
+                    <Row hide s={{ hide: false }}>
+                      <ToggleButton
+                        prefixIcon="person"
+                        href="/about"
+                        selected={pathname === "/about"}
+                      />
+                    </Row>
+                  </>
+                )}
+                {routes["/work"] && (
+                  <>
+                    <Row s={{ hide: true }}>
+                      <ToggleButton
+                        prefixIcon="grid"
+                        href="/work"
+                        label={work.label}
+                        selected={pathname.startsWith("/work")}
+                      />
+                    </Row>
+                    <Row hide s={{ hide: false }}>
+                      <ToggleButton
+                        prefixIcon="grid"
+                        href="/work"
+                        selected={pathname.startsWith("/work")}
+                      />
+                    </Row>
+                  </>
+                )}
+                {routes["/blog"] && (
+                  <>
+                    <Row s={{ hide: true }}>
+                      <ToggleButton
+                        prefixIcon="book"
+                        href="/blog"
+                        label={blog.label}
+                        selected={pathname.startsWith("/blog")}
+                      />
+                    </Row>
+                    <Row hide s={{ hide: false }}>
+                      <ToggleButton
+                        prefixIcon="book"
+                        href="/blog"
+                        selected={pathname.startsWith("/blog")}
+                      />
+                    </Row>
+                  </>
+                )}
+                {routes["/gallery"] && (
+                  <>
+                    <Row s={{ hide: true }}>
+                      <ToggleButton
+                        prefixIcon="gallery"
+                        href="/gallery"
+                        label={gallery.label}
+                        selected={pathname.startsWith("/gallery")}
+                      />
+                    </Row>
+                    <Row hide s={{ hide: false }}>
+                      <ToggleButton
+                        prefixIcon="gallery"
+                        href="/gallery"
+                        selected={pathname.startsWith("/gallery")}
+                      />
+                    </Row>
+                  </>
+                )}
+                <Line background="neutral-alpha-medium" vert maxHeight="24" />
+                <Row s={{ hide: true }}>
+                  <ToggleButton
+                    prefixIcon="sparkles"
+                    label={isRebuilding ? "Live" : "Swarm"}
+                    selected={isRebuilding}
+                    onClick={() => (isRebuilding ? stopAndGoLive() : startFullRebuild())}
+                    aria-label="Run Swarm Rebuild (Alt+Shift+S)"
+                  />
+                </Row>
+                <Row hide s={{ hide: false }}>
+                  <ToggleButton
+                    prefixIcon="sparkles"
+                    selected={isRebuilding}
+                    onClick={() => (isRebuilding ? stopAndGoLive() : startFullRebuild())}
+                    aria-label="Run Swarm Rebuild"
+                  />
+                </Row>
+                <ToggleButton
+                  prefixIcon="blueprint"
+                  selected={blueprintMode}
+                  onClick={toggleBlueprintMode}
+                  aria-label="Toggle Blueprint Inspect Mode (Alt+Shift+B)"
+                />
+                {display.themeSwitcher && (
+                  <>
+                    <Line background="neutral-alpha-medium" vert maxHeight="24" />
+                    <ThemeToggle />
+                  </>
+                )}
+              </Row>
             </Row>
-          </Row>
+          </div>
         </Row>
         <Flex fillWidth horizontal="end" vertical="center">
           <Flex

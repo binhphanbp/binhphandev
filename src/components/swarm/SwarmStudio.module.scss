@@ -1,0 +1,559 @@
+.overlayRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 9980;
+  pointer-events: none;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Living Canvas Hover Inspect Frame */
+.inspectLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.inspectVisible {
+  opacity: 1;
+}
+
+.guideH {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed rgba(6, 182, 212, 0.38);
+}
+
+.guideV {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed rgba(6, 182, 212, 0.38);
+}
+
+.inspectBox {
+  position: absolute;
+  border: 1px solid rgba(6, 182, 212, 0.58);
+  background: rgba(6, 182, 212, 0.025);
+  border-radius: 4px;
+  will-change: left, top, width, height;
+  transition:
+    width 90ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 90ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cornerTL,
+.cornerTR,
+.cornerBL,
+.cornerBR {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--page-background, #0b0f14);
+  border: 1.5px solid #06b6d4;
+  border-radius: 1px;
+}
+
+.cornerTL {
+  top: -3.5px;
+  left: -3.5px;
+}
+
+.cornerTR {
+  top: -3.5px;
+  right: -3.5px;
+}
+
+.cornerBL {
+  bottom: -3.5px;
+  left: -3.5px;
+}
+
+.cornerBR {
+  bottom: -3.5px;
+  right: -3.5px;
+}
+
+.inspectBadge {
+  position: absolute;
+  left: -1px;
+  top: -22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: #0891b2;
+  color: #ffffff;
+  font-family: var(--font-code), monospace;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+
+.inspectBadgeBelow {
+  top: auto;
+  bottom: -23px;
+  left: -1px;
+}
+
+.inspectBadgeInside {
+  top: 6px;
+  bottom: auto;
+  left: 6px;
+}
+
+/* Active Swarm Construction Wireframes */
+.wireLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wireBox {
+  position: fixed;
+  border: 1.5px solid var(--wire-color, #06b6d4);
+  background: color-mix(in srgb, var(--wire-color, #06b6d4) 10%, transparent);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.wireCornerTL,
+.wireCornerTR,
+.wireCornerBL,
+.wireCornerBR {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background: #ffffff;
+  border: 1.5px solid var(--wire-color, #06b6d4);
+  border-radius: 1px;
+}
+
+.wireCornerTL {
+  top: -3px;
+  left: -3px;
+}
+
+.wireCornerTR {
+  top: -3px;
+  right: -3px;
+}
+
+.wireCornerBL {
+  bottom: -3px;
+  left: -3px;
+}
+
+.wireCornerBR {
+  bottom: -3px;
+  right: -3px;
+}
+
+.wireDashed {
+  border-style: dashed;
+  border-width: 1.5px;
+}
+
+.wireSizeBadge {
+  position: absolute;
+  right: -1px;
+  bottom: -22px;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  background: var(--wire-color, #06b6d4);
+  color: #ffffff;
+  font-family: var(--font-code), monospace;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
+}
+
+.alignGuideV {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed var(--wire-color, #ec4899);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.alignGuideH {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed var(--wire-color, #ec4899);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Figma Smart Spacing Line & Red Gap Pill */
+.gapLineV {
+  position: fixed;
+  z-index: 2;
+  width: 1.5px;
+  background: #ef4444;
+  transform: translateX(-50%);
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.gapLineV::before,
+.gapLineV::after {
+  content: "";
+  position: absolute;
+  left: -4px;
+  width: 9.5px;
+  height: 1.5px;
+  background: #ef4444;
+}
+
+.gapLineV::before {
+  top: 0;
+}
+
+.gapLineV::after {
+  bottom: 0;
+}
+
+.gapLineH {
+  position: fixed;
+  z-index: 2;
+  height: 1.5px;
+  background: #ef4444;
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.gapLineH::before,
+.gapLineH::after {
+  content: "";
+  position: absolute;
+  top: -4px;
+  width: 1.5px;
+  height: 9.5px;
+  background: #ef4444;
+}
+
+.gapLineH::before {
+  left: 0;
+}
+
+.gapLineH::after {
+  right: 0;
+}
+
+.gapPill {
+  position: fixed;
+  z-index: 3;
+  transform: translate(-50%, -50%);
+  padding: 1.5px 7px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-family: var(--font-code), monospace;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.42);
+  transition: opacity 220ms ease;
+}
+
+/* Cursor Click Ripple */
+.clickRipple {
+  position: fixed;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -11px;
+  border-radius: 999px;
+  border: 2px solid var(--ripple-color, #06b6d4);
+  pointer-events: none;
+  animation: swarmRipple 360ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes swarmRipple {
+  0% {
+    transform: scale(0.25);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+/* React-safe Typewriter Overlay Ghost */
+.typewriterGhost {
+  position: fixed;
+  pointer-events: none;
+  margin: 0;
+  padding: 0;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.typingCaret {
+  display: inline-block;
+  width: 2.5px;
+  height: 0.92em;
+  margin-left: 2px;
+  vertical-align: -0.08em;
+  border-radius: 1px;
+  animation: caretBlink 520ms steps(2, start) infinite;
+}
+
+@keyframes caretBlink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Multiplayer Cursors */
+.cursorLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cursorNode {
+  position: fixed;
+  top: 0;
+  left: 0;
+  will-change: transform, opacity;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.cursorAmbient {
+  opacity: 0.78;
+}
+
+.cursorSvg {
+  display: block;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.32));
+  transform-origin: 2px 2px;
+  transition: transform 120ms ease;
+}
+
+.cursorPressing .cursorSvg {
+  transform: scale(0.88);
+}
+
+.cursorTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 12px;
+  margin-top: -2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-family: var(--font-code), monospace;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+}
+
+.cursorTask {
+  opacity: 0.88;
+  font-weight: 400;
+  padding-left: 5px;
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* Floating Swarm Control HUD Dock */
+.hudDock {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 9995;
+  pointer-events: auto;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--page-background, rgba(16, 18, 22, 0.92));
+  border: 1px solid var(--neutral-alpha-medium, rgba(128, 128, 128, 0.28));
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(6, 182, 212, 0.18);
+  backdrop-filter: blur(12px);
+  font-family: var(--font-body), sans-serif;
+  font-size: 12px;
+  color: var(--neutral-on-background-strong, inherit);
+  animation: hudSlideUp 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hudProgressTrack {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.hudProgressBar {
+  height: 100%;
+  background: linear-gradient(90deg, #06b6d4, #3b82f6, #10b981);
+  border-radius: 999px;
+  transition: width 180ms ease;
+}
+
+@keyframes hudSlideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.hudStatusGroup {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 6px;
+}
+
+.hudDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #06b6d4;
+  box-shadow: 0 0 8px #06b6d4;
+  animation: pulseDot 1.1s ease-in-out infinite;
+}
+
+.hudDotDone {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: none;
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.65;
+  }
+}
+
+.hudLabel {
+  font-family: var(--font-code), monospace;
+  font-size: 11.5px;
+  white-space: nowrap;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hudDivider {
+  width: 1px;
+  height: 16px;
+  background: var(--neutral-alpha-medium, rgba(128, 128, 128, 0.25));
+  margin: 0 2px;
+}
+
+.hudBtn {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-code), monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.hudBtn:hover {
+  background: var(--neutral-alpha-weak, rgba(128, 128, 128, 0.14));
+}
+
+.hudBtnActive {
+  background: rgba(6, 182, 212, 0.14);
+  border-color: rgba(6, 182, 212, 0.45);
+  color: #06b6d4;
+}
+
+:global(html[data-theme="light"]) .hudBtnActive {
+  background: rgba(8, 145, 178, 0.12);
+  border-color: rgba(8, 145, 178, 0.45);
+  color: #0e7490;
+}
+
+:global(html[data-theme="light"]) .hudDock {
+  box-shadow:
+    0 10px 28px rgba(15, 23, 42, 0.14),
+    0 0 0 1px rgba(8, 145, 178, 0.22);
+}
+
+.hudBtnPrimary {
+  background: #06b6d4;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.hudBtnPrimary:hover {
+  background: #0891b2;
+}
+
+/* Mobile adaptation: Once UI Header sits at bottom on <= 768px, so lift HUD cleanly above it */
+@media (max-width: 768px) {
+  .hudDock {
+    bottom: 84px;
+    max-width: calc(100vw - 24px);
+    padding: 5px 8px;
+    gap: 4px;
+  }
+
+  .hudLabel {
+    max-width: 115px;
+  }
+
+  .hideMobile {
+    display: none;
+  }
+}

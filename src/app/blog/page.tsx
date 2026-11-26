@@ -29,9 +29,18 @@ export default function Blog() {
           image: `${baseURL}${person.avatar}`,
         }}
       />
-      <Heading marginBottom="l" variant="heading-strong-xl" marginLeft="24">
-        {blog.title}
-      </Heading>
+      <div
+        data-swarm-hero="true"
+        data-swarm-target="blog-heading"
+        data-swarm-kind="typewriter"
+        data-swarm-inspect="true"
+        data-swarm-label="Blog · PageHeading"
+        style={{ width: "100%" }}
+      >
+        <Heading marginBottom="l" variant="heading-strong-xl" marginLeft="24">
+          {blog.title}
+        </Heading>
+      </div>
       <Column fillWidth flex={1} gap="40">
         <Posts range={[1, 1]} thumbnail />
         <Posts range={[2, 3]} columns="2" thumbnail direction="column" />
