@@ -44,6 +44,7 @@ interface LiveCursorEntity {
   ty: number;
   vx: number;
   vy: number;
+  arcOffset: number;
   orbitPhase: number;
   ambient: boolean;
   pressing: boolean;
@@ -53,6 +54,8 @@ interface TrackedWireframe {
   update: () => void;
   remove: () => void;
 }
+
+const SWARM_INTRO_SESSION_KEY = "bp_swarm_intro_v1";
 
 function isFullscreenModalOpen(): boolean {
   if (typeof document === "undefined") return false;
@@ -107,10 +110,99 @@ function spawnClickRipple(layer: HTMLElement | null, x: number, y: number, color
   ripple.style.top = `${Math.round(y)}px`;
   ripple.style.setProperty("--ripple-color", color);
   layer.appendChild(ripple);
-  window.setTimeout(() => ripple.remove(), 380);
+  window.setTimeout(() => ripple.remove(), 440);
 }
 
-const SWARM_INTRO_SESSION_KEY = "bp_swarm_intro_v1";
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+function resolveUserCursorAction(
+  target: HTMLElement | null,
+  phase: SwarmPhase,
+  blueprintMode: boolean,
+): { action: string; interactive: boolean; hideCustom: boolean } {
+  if (!target) {
+    return {
+      action: phase !== "idle" ? "Director" : blueprintMode ? "Inspector" : "Exploring",
+      interactive: false,
+      hideCustom: false,
+    };
+  }
+
+  // Native text caret for text inputs
+  if (
+    target.closest(
+      "input[type='text'], input[type='email'], input[type='password'], input[type='search'], textarea, [contenteditable='true']",
+    )
+  ) {
+    return { action: "Typing", interactive: false, hideCustom: true };
+  }
+
+  if (target.closest(".cursor-zoom-out")) {
+    return { action: "Close ×", interactive: true, hideCustom: false };
+  }
+  if (target.closest(".cursor-zoom-in")) {
+    return { action: "Zoom +", interactive: true, hideCustom: false };
+  }
+
+  const ariaBtn = target.closest<HTMLElement>("[aria-label]");
+  const ariaText = ariaBtn?.getAttribute("aria-label") || "";
+  if (ariaText.includes("Swarm Rebuild")) {
+    return {
+      action: phase !== "idle" ? "Go Live" : "Run Swarm ✦",
+      interactive: true,
+      hideCustom: false,
+    };
+  }
+  if (ariaText.includes("Blueprint")) {
+    return { action: "Blueprint ⊞", interactive: true, hideCustom: false };
+  }
+  if (ariaText.includes("Switch to")) {
+    return { action: "Theme", interactive: true, hideCustom: false };
+  }
+
+  const anchor = target.closest<HTMLAnchorElement>("a[href]");
+  if (anchor) {
+    const href = anchor.getAttribute("href") || "";
+    if (href.startsWith("http") || anchor.target === "_blank") {
+      return { action: "Open ↗", interactive: true, hideCustom: false };
+    }
+    if (href.startsWith("mailto:")) {
+      return { action: "Email ✉", interactive: true, hideCustom: false };
+    }
+    if (href.startsWith("/work/")) {
+      return { action: "Case Study →", interactive: true, hideCustom: false };
+    }
+    if (href.startsWith("/blog/")) {
+      return { action: "Read Story →", interactive: true, hideCustom: false };
+    }
+    return { action: "Navigate", interactive: true, hideCustom: false };
+  }
+
+  if (target.closest("button, [role='button']")) {
+    return { action: "Click", interactive: true, hideCustom: false };
+  }
+
+  if (phase !== "idle") {
+    return { action: "Director", interactive: false, hideCustom: false };
+  }
+
+  if (blueprintMode) {
+    const bpTarget = target.closest<HTMLElement>("[data-swarm-label]");
+    if (bpTarget) {
+      const short = (bpTarget.getAttribute("data-swarm-label") || "Inspect").split("·")[0].trim();
+      return { action: short, interactive: false, hideCustom: false };
+    }
+    return { action: "Inspector", interactive: false, hideCustom: false };
+  }
+
+  if (target.closest("[data-swarm-target='project-card']")) {
+    return { action: "Project", interactive: false, hideCustom: false };
+  }
+
+  return { action: "Exploring", interactive: false, hideCustom: false };
+}
 
 export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname();
@@ -133,6 +225,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const tourRef = useRef<boolean>(true);
   const blueprintRef = useRef<boolean>(false);
   const epochRef = useRef<number>(0);
+  const userScrolledDuringTourRef = useRef<boolean>(false);
   const hudHideTimerRef = useRef<number | null>(null);
 
   const wireLayerRef = useRef<HTMLDivElement | null>(null);
@@ -142,6 +235,18 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const inspectBadgeRef = useRef<HTMLDivElement | null>(null);
   const guideHRef = useRef<HTMLDivElement | null>(null);
   const guideVRef = useRef<HTMLDivElement | null>(null);
+
+  // Custom Multiplayer User Cursor DOM refs (0ms input latency)
+  const userCursorLayerRef = useRef<HTMLDivElement | null>(null);
+  const userCursorRootRef = useRef<HTMLDivElement | null>(null);
+  const userCursorSvgRef = useRef<SVGSVGElement | null>(null);
+  const userCursorPillRef = useRef<HTMLDivElement | null>(null);
+  const userCursorActionRef = useRef<HTMLSpanElement | null>(null);
+  const userVelRef = useRef<{ prevX: number; vx: number; tilt: number }>({
+    prevX: -9999,
+    vx: 0,
+    tilt: 0,
+  });
 
   const cursorsRef = useRef<LiveCursorEntity[]>([]);
   const wireframesRef = useRef<Set<TrackedWireframe>>(new Set());
@@ -180,10 +285,26 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [blueprintMode]);
 
-  // Initialize audio preference
+  // Keep user cursor action pill immediately synced when phase or blueprintMode changes while pointer is stationary
+  useEffect(() => {
+    if (typeof document === "undefined" || !userCursorActionRef.current) return;
+    const { x, y } = pointerRef.current;
+    const elUnderPointer =
+      x >= 0 && y >= 0 ? (document.elementFromPoint(x, y) as HTMLElement | null) : null;
+    const { action, interactive } = resolveUserCursorAction(elUnderPointer, phase, blueprintMode);
+    userCursorActionRef.current.textContent = action;
+    userCursorRootRef.current?.classList.toggle(styles.userCursorInteractive, interactive);
+  }, [phase, blueprintMode]);
+
+  // Initialize audio preference & cleanup custom cursor attribute on unmount
   useEffect(() => {
     swarmAudio.init();
     setSoundEnabled(swarmAudio.isEnabled());
+    return () => {
+      if (typeof document !== "undefined") {
+        document.documentElement.removeAttribute("data-custom-cursor");
+      }
+    };
   }, []);
 
   const clearHudTimer = useCallback(() => {
@@ -253,6 +374,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         ty: startY,
         vx: 0,
         vy: 0,
+        arcOffset: (Math.random() - 0.5) * 26,
         orbitPhase: Math.random() * Math.PI * 2,
         ambient,
         pressing: false,
@@ -287,7 +409,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     spawnCursorEntity(SWARM_AGENTS[0], startX, startY, true, "60fps");
   }, [clearAllCursors, spawnCursorEntity]);
 
-  // Master 60fps Physics & Viewport Tracking Loop
+  // Master 60fps Physics, User Cursor Tilt Decay & Viewport Tracking Loop
   useEffect(() => {
     if (typeof window === "undefined") return;
     let rafId = 0;
@@ -301,6 +423,15 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const vh = window.innerHeight;
       const px = pointerRef.current.x;
       const py = pointerRef.current.y;
+
+      // Smoothly decay User Multiplayer Cursor velocity tilt back to 0deg when pointer rests
+      if (userCursorSvgRef.current) {
+        userVelRef.current.vx *= Math.exp(-14 * dt);
+        const targetTilt = Math.max(-8, Math.min(8, userVelRef.current.vx * 0.011));
+        userVelRef.current.tilt +=
+          (targetTilt - userVelRef.current.tilt) * (1 - Math.exp(-18 * dt));
+        userCursorSvgRef.current.style.transform = `rotate(${userVelRef.current.tilt.toFixed(2)}deg)`;
+      }
 
       const modalOpen = isFullscreenModalOpen();
       if (cursorLayerRef.current) {
@@ -348,19 +479,18 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // 2. Update cursors with spring physics + mouse avoidance + viewport bounds
+      // 2. Update Swarm cursors with relaxed human-paced spring physics + mouse avoidance
       const maxCursorX = Math.max(40, vw - 195);
       const maxCursorY = Math.max(40, vh - 46);
 
       for (let idx = 0; idx < cursorsRef.current.length; idx++) {
         const c = cursorsRef.current[idx];
-        c.orbitPhase += dt * (c.ambient ? 0.85 : 2.6);
+        c.orbitPhase += dt * (c.ambient ? 0.72 : 1.65);
 
         let goalX = c.tx;
         let goalY = c.ty;
 
         if (c.ambient) {
-          // Gentle patrol in outer right gutter outside reading column, safely inside viewport
           const marginCenter = Math.min(vw - 215, Math.max(vw * 0.78, vw - 240));
           goalX = marginCenter + Math.sin(c.orbitPhase) * 24;
           goalY = Math.min(vh - 130, Math.max(110, vh * 0.34)) + Math.cos(c.orbitPhase * 0.78) * 64;
@@ -370,18 +500,24 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             setCursorTask(c, modeLabel);
           }
         } else if (!c.pressing) {
-          // Micro flocking breathing when hovering between tasks
-          goalX += Math.cos(c.orbitPhase + idx) * 4;
-          goalY += Math.sin(c.orbitPhase + idx) * 4;
+          // Gentle organic drift while observing teammates
+          goalX += Math.cos(c.orbitPhase + idx * 1.1) * 8;
+          goalY += Math.sin(c.orbitPhase * 0.9 + idx) * 7;
         }
 
-        // Joel Califa mouse repulsion when user's real cursor approaches
+        // Subtle curved flight arc when gliding long distances
+        const distToGoal = Math.hypot(goalX - c.x, goalY - c.y);
+        if (!c.ambient && distToGoal > 36) {
+          goalY += Math.min(1, distToGoal / 260) * c.arcOffset;
+        }
+
+        // Joel Califa mouse repulsion when user's multiplayer cursor ("You") approaches
         const dxMouse = c.x - px;
         const dyMouse = c.y - py;
         const distMouse = Math.hypot(dxMouse, dyMouse);
-        const repelRadius = c.ambient ? 165 : 85;
+        const repelRadius = c.ambient ? 170 : 95;
         if (distMouse > 1 && distMouse < repelRadius && !c.pressing) {
-          const strength = ((repelRadius - distMouse) / repelRadius) * (c.ambient ? 115 : 42);
+          const strength = ((repelRadius - distMouse) / repelRadius) * (c.ambient ? 118 : 50);
           goalX += (dxMouse / distMouse) * strength;
           goalY += (dyMouse / distMouse) * strength;
         }
@@ -390,7 +526,8 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         goalX = Math.max(14, Math.min(maxCursorX, goalX));
         goalY = Math.max(14, Math.min(maxCursorY, goalY));
 
-        const stiffness = c.ambient ? 3.8 : Math.min(26, 11.5 * speedRef.current);
+        // Relaxed, human hand glide stiffness (5.4 at 1x instead of snappy 11.5)
+        const stiffness = c.ambient ? 3.4 : Math.min(18, 5.4 * speedRef.current);
         const step = 1 - Math.exp(-stiffness * dt);
 
         const prevX = c.x;
@@ -398,7 +535,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         c.y += (goalY - c.y) * step;
         c.vx = (c.x - prevX) / Math.max(0.008, dt);
 
-        const tilt = Math.max(-9, Math.min(9, c.vx * 0.012));
+        const tilt = Math.max(-8, Math.min(8, c.vx * 0.01));
         c.el.style.transform = `translate3d(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px, 0) rotate(${tilt.toFixed(1)}deg)`;
       }
 
@@ -409,7 +546,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => window.cancelAnimationFrame(rafId);
   }, []);
 
-  // Living Canvas Hover Inspect (Desktop pointer)
+  // Living Canvas Hover Inspect + 0ms-Latency Custom Multiplayer User Cursor
   const updateInspectBox = useCallback((el: HTMLElement | null) => {
     const layer = inspectLayerRef.current;
     const box = inspectBoxRef.current;
@@ -456,9 +593,54 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
     const onPointerMove = (e: PointerEvent) => {
+      const prevX = userVelRef.current.prevX;
+      if (prevX > -9000) {
+        userVelRef.current.vx = (e.clientX - prevX) * 28;
+      }
+      userVelRef.current.prevX = e.clientX;
       pointerRef.current = { x: e.clientX, y: e.clientY };
+
+      const targetNode = e.target as HTMLElement | null;
+
+      // Update Custom Multiplayer User Cursor with 0ms tip latency
+      if (e.pointerType === "mouse" && finePointer && userCursorRootRef.current) {
+        userCursorRootRef.current.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
+
+        const { action, interactive, hideCustom } = resolveUserCursorAction(
+          targetNode,
+          phaseRef.current,
+          blueprintRef.current,
+        );
+
+        if (hideCustom) {
+          userCursorRootRef.current.classList.remove(styles.userCursorVisible);
+          document.documentElement.removeAttribute("data-custom-cursor");
+        } else {
+          userCursorRootRef.current.classList.add(styles.userCursorVisible);
+          userCursorRootRef.current.classList.toggle(styles.userCursorInteractive, interactive);
+          if (!document.documentElement.hasAttribute("data-custom-cursor")) {
+            document.documentElement.setAttribute("data-custom-cursor", "true");
+          }
+          if (userCursorActionRef.current && userCursorActionRef.current.textContent !== action) {
+            userCursorActionRef.current.textContent = action;
+          }
+          // Flip user cursor pill to the left of the arrow when near right edge of screen
+          if (userCursorPillRef.current) {
+            userCursorPillRef.current.classList.toggle(
+              styles.userCursorPillFlipped,
+              e.clientX > window.innerWidth - 175,
+            );
+          }
+        }
+      } else if (e.pointerType !== "mouse" && userCursorRootRef.current) {
+        userCursorRootRef.current.classList.remove(styles.userCursorVisible);
+        document.documentElement.removeAttribute("data-custom-cursor");
+      }
+
+      // Living Canvas Hover Inspect
       if (e.pointerType !== "mouse" || phaseRef.current !== "idle" || isFullscreenModalOpen()) {
         if (hoveredElRef.current) {
           hoveredElRef.current = null;
@@ -467,7 +649,6 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
-      const targetNode = e.target as HTMLElement | null;
       if (!targetNode || targetNode.closest("[data-swarm-ignore]")) {
         if (hoveredElRef.current) {
           hoveredElRef.current = null;
@@ -496,6 +677,33 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse" && finePointer && userCursorRootRef.current) {
+        userCursorRootRef.current.classList.add(styles.userCursorDown);
+        spawnClickRipple(userCursorLayerRef.current, e.clientX, e.clientY, "#818cf8");
+      }
+    };
+
+    const onPointerUp = () => {
+      userCursorRootRef.current?.classList.remove(styles.userCursorDown);
+    };
+
+    const onDocumentMouseOut = (e: MouseEvent) => {
+      if (!e.relatedTarget) {
+        userCursorRootRef.current?.classList.remove(
+          styles.userCursorVisible,
+          styles.userCursorDown,
+        );
+        pointerRef.current = { x: -9999, y: -9999 };
+      }
+    };
+
+    const onUserWheelOrTouch = () => {
+      if (phaseRef.current === "full-rebuild") {
+        userScrolledDuringTourRef.current = true;
+      }
+    };
+
     const onScroll = () => {
       if (hoveredElRef.current && phaseRef.current === "idle") {
         updateInspectBox(hoveredElRef.current);
@@ -517,10 +725,24 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     window.addEventListener("pointermove", onPointerMove, { passive: true });
+    window.addEventListener("pointerdown", onPointerDown, { passive: true });
+    window.addEventListener("pointerup", onPointerUp, { passive: true });
+    window.addEventListener("pointercancel", onPointerUp, { passive: true });
+    window.addEventListener("blur", onPointerUp, { passive: true });
+    window.addEventListener("wheel", onUserWheelOrTouch, { passive: true });
+    window.addEventListener("touchmove", onUserWheelOrTouch, { passive: true });
+    document.addEventListener("mouseout", onDocumentMouseOut, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize, { passive: true });
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+      window.removeEventListener("blur", onPointerUp);
+      window.removeEventListener("wheel", onUserWheelOrTouch);
+      window.removeEventListener("touchmove", onUserWheelOrTouch);
+      document.removeEventListener("mouseout", onDocumentMouseOut);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
     };
@@ -546,49 +768,83 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  // Helper: Smooth viewport scroll for Tour Mode
-  const ensureInViewport = useCallback(async (el: HTMLElement, epoch: number) => {
-    if (!tourRef.current || typeof window === "undefined") return;
-    const rect = el.getBoundingClientRect();
-    const topMargin = 88;
-    const bottomMargin = window.innerHeight - 110;
+  // Helper: Relaxed, human-browsing viewport scroll for Tour Mode
+  const ensureInViewport = useCallback(
+    async (
+      el: HTMLElement,
+      epoch: number,
+      observerCursors: LiveCursorEntity[] = [],
+    ): Promise<void> => {
+      if (!tourRef.current || typeof window === "undefined") return;
+      const rect = el.getBoundingClientRect();
+      const topMargin = 92;
+      const bottomMargin = window.innerHeight - 130;
 
-    if (rect.top >= topMargin && rect.bottom <= bottomMargin) return;
-    if (rect.top >= topMargin && rect.top <= window.innerHeight * 0.55) return;
+      const comfortablyVisible =
+        (rect.top >= topMargin && rect.bottom <= bottomMargin) ||
+        (rect.top >= topMargin && rect.top <= window.innerHeight * 0.42);
 
-    const targetScrollY = Math.max(
-      0,
-      window.scrollY + rect.top - Math.min(140, window.innerHeight * 0.22),
-    );
-    const startY = window.scrollY;
-    const diff = targetScrollY - startY;
-    if (Math.abs(diff) < 36) return;
+      if (!comfortablyVisible) {
+        const targetScrollY = Math.max(
+          0,
+          window.scrollY + rect.top - Math.min(148, window.innerHeight * 0.2),
+        );
+        const startY = window.scrollY;
+        const diff = targetScrollY - startY;
 
-    const duration = Math.min(520, Math.max(240, Math.abs(diff) * 0.45));
-    const startTime = performance.now();
+        if (Math.abs(diff) >= 32) {
+          // Leisurely reading-scroll speed (~850ms - 1500ms at 1x)
+          const duration = Math.min(1520, Math.max(820, Math.abs(diff) * 1.08));
+          const startTime = performance.now();
 
-    await new Promise<void>((resolve, reject) => {
-      const step = (now: number) => {
-        if (epochRef.current !== epoch) {
-          reject(new Error("cancelled"));
-          return;
+          await new Promise<void>((resolve, reject) => {
+            const step = (now: number) => {
+              if (epochRef.current !== epoch) {
+                reject(new Error("cancelled"));
+                return;
+              }
+              const t = Math.min(1, ((now - startTime) * speedRef.current) / duration);
+              const eased = easeInOutCubic(t);
+              window.scrollTo(0, startY + diff * eased);
+              if (t < 1) {
+                window.requestAnimationFrame(step);
+              } else {
+                resolve();
+              }
+            };
+            window.requestAnimationFrame(step);
+          });
+
+          // Brief reading breath after camera settles on section
+          await waitScaled(240, epoch);
         }
-        const t = Math.min(1, ((now - startTime) * speedRef.current) / duration);
-        const eased = 1 - (1 - t) ** 3;
-        window.scrollTo(0, startY + diff * eased);
-        if (t < 1) {
-          window.requestAnimationFrame(step);
-        } else {
-          resolve();
-        }
-      };
-      window.requestAnimationFrame(step);
-    });
-  }, []);
+      }
 
-  // Build Action 1: Wireframe Box Construction
+      // Bring idle teammate cursors into flanking observer positions around the current focal block
+      if (observerCursors.length > 0) {
+        const liveRect = el.getBoundingClientRect();
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        for (let i = 0; i < observerCursors.length; i++) {
+          const obs = observerCursors[i];
+          const onLeft = i % 2 === 0;
+          obs.tx = onLeft
+            ? Math.max(24, liveRect.left - 85 - (i % 3) * 18)
+            : Math.min(vw - 205, liveRect.right + 28 + (i % 3) * 14);
+          obs.ty = Math.max(
+            76,
+            Math.min(vh - 96, liveRect.top + 28 + ((i * 54) % Math.max(60, liveRect.height))),
+          );
+          setCursorTask(obs, "reviewing");
+        }
+      }
+    },
+    [waitScaled],
+  );
+
+  // Build Action 1: Deliberate, Browse-Paced Wireframe Box Construction
   const runBoxAction = useCallback(
-    async (cursor: LiveCursorEntity, target: SwarmTarget, epoch: number) => {
+    async (cursor: LiveCursorEntity, target: SwarmTarget, epoch: number, isHeroIntro = false) => {
       const layer = wireLayerRef.current;
       if (!layer) return;
 
@@ -597,7 +853,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cursor.tx = r0.left;
       cursor.ty = r0.top;
       setCursorTask(cursor, shortName);
-      await waitScaled(200, epoch);
+      await waitScaled(isHeroIntro ? 340 : 440, epoch);
 
       const rClick = target.el.getBoundingClientRect();
       setCursorPressing(cursor, true);
@@ -613,7 +869,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       badge.className = styles.wireSizeBadge;
       box.appendChild(badge);
 
-      let progressRatio = 0.05;
+      let progressRatio = 0.04;
       const tracker: TrackedWireframe = {
         update: () => {
           const r = target.el.getBoundingClientRect();
@@ -629,13 +885,16 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         },
         remove: () => box.remove(),
       };
-      // Position synchronously before mounting to avoid any (0, 0) flash
       tracker.update();
       layer.appendChild(box);
       wireframesRef.current.add(tracker);
 
-      const dragDuration = 300;
+      // Scale drag duration comfortably by element size (~680ms for buttons, ~1050ms for cards)
+      const dragDuration = isHeroIntro
+        ? 580
+        : Math.min(1120, Math.max(680, (r0.width + r0.height) * 0.56));
       const dragStart = performance.now();
+
       await new Promise<void>((resolve, reject) => {
         const step = (now: number) => {
           if (epochRef.current !== epoch) {
@@ -645,7 +904,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return;
           }
           const t = Math.min(1, ((now - dragStart) * speedRef.current) / dragDuration);
-          progressRatio = 1 - (1 - t) ** 3;
+          progressRatio = easeInOutCubic(t);
           setCursorTask(
             cursor,
             `${Math.round(r0.width * progressRatio)}×${Math.round(r0.height * progressRatio)}`,
@@ -668,21 +927,26 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       wireframesRef.current.delete(tracker);
       box.remove();
+
+      // Let the viewer admire the newly constructed block before moving on
+      if (!isHeroIntro) {
+        setCursorTask(cursor, "aligned ✓");
+        await waitScaled(400, epoch);
+      }
     },
     [waitScaled],
   );
 
-  // Build Action 2: React-Safe Typewriter with Exact Inner Heading Typography Sync
+  // Build Action 2: Natural Character-by-Character Typewriter
   const runTypewriterAction = useCallback(
     async (cursor: LiveCursorEntity, target: SwarmTarget, epoch: number, fast = false) => {
       const layer = wireLayerRef.current;
       const text = target.textSnapshot || "";
       if (!layer || !text) {
-        await runBoxAction(cursor, target, epoch);
+        await runBoxAction(cursor, target, epoch, fast);
         return;
       }
 
-      // Resolve the actual typographic element (h1/h2/h3) inside any wrapper div
       const textHost =
         target.el.querySelector<HTMLElement>(
           "h1, h2, h3, [class*='display'], [class*='heading']",
@@ -690,12 +954,10 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const cs = window.getComputedStyle(textHost);
       const r0 = textHost.getBoundingClientRect();
 
-      // Snap alignment guide
       const guide = document.createElement("div");
       guide.className = styles.alignGuideV;
       guide.style.setProperty("--wire-color", cursor.agent.color);
 
-      // Ghost clone matching 1:1 computed typography of the real heading
       const ghost = document.createElement("div");
       ghost.className = styles.typewriterGhost;
       ghost.style.fontFamily = cs.fontFamily;
@@ -732,17 +994,18 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cursor.tx = r0.left + 16;
       cursor.ty = r0.top + Math.min(24, r0.height * 0.45);
       setCursorTask(cursor, "typing...");
-      await waitScaled(170, epoch);
+      await waitScaled(fast ? 260 : 380, epoch);
       setCursorPressing(cursor, true);
       spawnClickRipple(layer, cursor.tx, cursor.ty, cursor.agent.color);
 
-      const charsPerStep = fast ? 3 : 2;
-      const stepDelay = fast ? 24 : 30;
+      const charsPerStep = 1;
+      const baseDelay = fast ? 34 : 46;
 
       try {
-        for (let i = charsPerStep; i <= text.length; i += charsPerStep) {
+        for (let i = 1; i <= text.length; i += charsPerStep) {
           if (epochRef.current !== epoch) throw new Error("cancelled");
           const slice = text.slice(0, i);
+          const lastChar = slice[slice.length - 1];
           ghost.textContent = slice;
           const caret = document.createElement("span");
           caret.className = styles.typingCaret;
@@ -754,10 +1017,17 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           cursor.tx = liveR.left + 16 + ratio * Math.max(24, liveR.width - 32);
           cursor.ty = liveR.top + Math.min(32, liveR.height * 0.55);
 
-          if (i % (charsPerStep * 2) === 0) {
+          if (i % 2 === 0 && lastChar !== " ") {
             swarmAudio.playKey();
           }
-          await waitScaled(stepDelay, epoch);
+
+          const punctuationPause =
+            lastChar === "," || lastChar === "-" || lastChar === "–" || lastChar === "."
+              ? 75
+              : lastChar === " "
+                ? 18
+                : 0;
+          await waitScaled(baseDelay + punctuationPause, epoch);
         }
       } finally {
         setCursorPressing(cursor, false);
@@ -768,25 +1038,30 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       target.el.setAttribute("data-swarm-conceal", "revealed");
       concealedElsRef.current.delete(target.el);
       swarmAudio.playSnap();
+
+      if (!fast) {
+        setCursorTask(cursor, "typed ✓");
+        await waitScaled(360, epoch);
+      }
     },
     [runBoxAction, waitScaled],
   );
 
-  // Build Action 3: Alt+Drag Component Duplication with Figma Smart-Spacing Line & Gap Pill
+  // Build Action 3: Unhurried Alt+Drag Duplication with Lingering Figma Smart-Spacing Ruler
   const runDuplicateAction = useCallback(
     async (cursor: LiveCursorEntity, target: SwarmTarget, epoch: number) => {
       const layer = wireLayerRef.current;
       const srcEl = target.sourceEl;
       if (!layer || !srcEl) {
-        await runBoxAction(cursor, target, epoch);
+        await runBoxAction(cursor, target, epoch, false);
         return;
       }
 
       const rs0 = srcEl.getBoundingClientRect();
       cursor.tx = rs0.left + rs0.width * 0.5;
-      cursor.ty = rs0.top + Math.min(48, rs0.height * 0.35);
+      cursor.ty = rs0.top + Math.min(54, rs0.height * 0.32);
       setCursorTask(cursor, "Alt + Drag");
-      await waitScaled(140, epoch);
+      await waitScaled(380, epoch);
 
       setCursorPressing(cursor, true);
       spawnClickRipple(layer, cursor.tx, cursor.ty, cursor.agent.color);
@@ -822,9 +1097,8 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           ghost.style.height = `${Math.round(h)}px`;
 
           cursor.tx = x + w * 0.5;
-          cursor.ty = y + Math.min(48, h * 0.35);
+          cursor.ty = y + Math.min(54, h * 0.32);
 
-          // Figma Smart Spacing Line + Gap Pill (exact 2D overlap check)
           const verticalOverlap = Math.min(rs.bottom, rt.bottom) - Math.max(rs.top, rt.top);
           const isHorizontalRow =
             verticalOverlap > 24 && (rt.left >= rs.right - 12 || rs.left >= rt.right - 12);
@@ -888,7 +1162,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           window.setTimeout(() => {
             gapLine.remove();
             gapPill.remove();
-          }, 240);
+          }, 360);
         },
       };
       tracker.update();
@@ -897,7 +1171,9 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       layer.appendChild(gapPill);
       wireframesRef.current.add(tracker);
 
-      const slideDur = 320;
+      // Pause briefly after grabbing clone, then glide smoothly into destination
+      await waitScaled(140, epoch);
+      const slideDur = 820;
       const slideStart = performance.now();
       await new Promise<void>((resolve, reject) => {
         const step = (now: number) => {
@@ -908,7 +1184,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             return;
           }
           const raw = Math.min(1, ((now - slideStart) * speedRef.current) / slideDur);
-          slideT = 1 - (1 - raw) ** 3;
+          slideT = easeInOutCubic(raw);
           if (raw < 1) {
             window.requestAnimationFrame(step);
           } else {
@@ -924,6 +1200,10 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       concealedElsRef.current.delete(target.el);
       swarmAudio.playSnap();
 
+      ghost.remove();
+      // Keep the red Figma spacing ruler visible briefly so the viewer admires the exact spacing
+      setCursorTask(cursor, "spaced ✓");
+      await waitScaled(460, epoch);
       wireframesRef.current.delete(tracker);
       tracker.remove();
     },
@@ -939,13 +1219,14 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     spawnAmbientCoopCursor();
   }, [clearHudTimer, restoreAllElements, spawnAmbientCoopCursor]);
 
-  // Core Sequence Orchestrator (Supports both Fast Hero Intro & Full Page Swarm)
+  // Core Sequence Orchestrator (Browse-Paced Full Tour & Graceful Hero Intro)
   const executeSwarmSequence = useCallback(
     async (scope: "hero" | "full", withTourOverride?: boolean) => {
       if (typeof window === "undefined") return;
 
       epochRef.current += 1;
       const epoch = epochRef.current;
+      userScrolledDuringTourRef.current = false;
       clearHudTimer();
       hoveredElRef.current = null;
       updateInspectBox(null);
@@ -958,7 +1239,8 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
 
       if (scope === "full" && tourRef.current && window.scrollY > 120) {
-        window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        await waitScaled(550, epoch);
       }
 
       const targets = scanSwarmTargets(scope);
@@ -967,7 +1249,6 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
-      // Conceal scanned targets without changing layout geometry (Zero CLS)
       for (const t of targets) {
         t.el.setAttribute("data-swarm-conceal", "true");
         concealedElsRef.current.add(t.el);
@@ -1007,16 +1288,16 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       try {
         if (scope === "hero") {
-          // Fast Parallel Hero Intro (~2.2s total)
+          // Graceful Staggered Hero Intro (~3.5s comfortable watchable intro)
           let doneCount = 0;
           await Promise.all(
             targets.map(async (target, idx) => {
               const cursor = activeCursors[idx % activeCursors.length];
-              await waitScaled(idx * 95, epoch);
+              await waitScaled(idx * 280, epoch);
               if (target.kind === "typewriter") {
                 await runTypewriterAction(cursor, target, epoch, true);
               } else {
-                await runBoxAction(cursor, target, epoch);
+                await runBoxAction(cursor, target, epoch, true);
               }
               doneCount += 1;
               setProgress({
@@ -1027,30 +1308,37 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             }),
           );
         } else {
-          // Choreographed Multi-Wave Full Page Rebuild
+          // Browse-Paced Storyboard Full Rebuild: 1 focal section (or 2 same-row items) per beat
           let idx = 0;
           while (idx < targets.length) {
             if (epochRef.current !== epoch) throw new Error("cancelled");
 
             const leadTarget = targets[idx];
-            await ensureInViewport(leadTarget.el, epoch);
-
-            // Group up to 2-3 nearby targets into a concurrent wave (unless duplicate chain)
             const wave: SwarmTarget[] = [leadTarget];
-            const leadTop = leadTarget.el.getBoundingClientRect().top + window.scrollY;
+            const leadRect = leadTarget.el.getBoundingClientRect();
+            const leadTop = leadRect.top + window.scrollY;
 
-            while (
-              wave.length < Math.min(3, activeCursors.length) &&
-              idx + wave.length < targets.length
-            ) {
-              const nextT = targets[idx + wave.length];
+            // Only pair a 2nd item concurrently if it sits on the same horizontal row and isn't a duplicate of leadTarget
+            if (idx + 1 < targets.length && activeCursors.length >= 2) {
+              const nextT = targets[idx + 1];
               const nextTop = nextT.el.getBoundingClientRect().top + window.scrollY;
-              if (nextT.kind === "duplicate") {
-                if (wave.some((w) => w.el === nextT.sourceEl)) break;
+              if (
+                nextT.kind !== "duplicate" &&
+                leadTarget.kind !== "typewriter" &&
+                nextT.kind !== "typewriter" &&
+                Math.abs(nextTop - leadTop) <= 44
+              ) {
+                wave.push(nextT);
               }
-              if (Math.abs(nextTop - leadTop) > 260) break;
-              wave.push(nextT);
             }
+
+            const assignedSet = new Set<LiveCursorEntity>();
+            const waveCursors = wave.map((_, wIdx) => {
+              const c = activeCursors[(idx + wIdx) % activeCursors.length];
+              assignedSet.add(c);
+              return c;
+            });
+            const observerCursors = activeCursors.filter((c) => !assignedSet.has(c));
 
             setProgress({
               current: idx,
@@ -1058,16 +1346,19 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               currentLabel: wave[0].label,
             });
 
+            // Smoothly scroll section into comfortable reading position & bring teammate cursors along
+            await ensureInViewport(leadTarget.el, epoch, observerCursors);
+
             await Promise.all(
               wave.map(async (target, wIdx) => {
-                const cursor = activeCursors[(idx + wIdx) % activeCursors.length];
-                await waitScaled(wIdx * 70, epoch);
+                const cursor = waveCursors[wIdx];
+                await waitScaled(wIdx * 220, epoch);
                 if (target.kind === "typewriter") {
                   await runTypewriterAction(cursor, target, epoch, false);
                 } else if (target.kind === "duplicate") {
                   await runDuplicateAction(cursor, target, epoch);
                 } else {
-                  await runBoxAction(cursor, target, epoch);
+                  await runBoxAction(cursor, target, epoch, false);
                 }
               }),
             );
@@ -1080,10 +1371,32 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             });
           }
 
-          // Smoothly glide back to top if Tour scrolled down the page
-          if (tourRef.current && window.scrollY > 240) {
-            await waitScaled(220, epoch);
-            window.scrollTo({ top: 0, behavior: "smooth" });
+          // Linger comfortably at the bottom before gently gliding back to top (if user didn't scroll manually)
+          if (tourRef.current && !userScrolledDuringTourRef.current && window.scrollY > 240) {
+            await waitScaled(1100, epoch);
+            const startY = window.scrollY;
+            const returnDur = Math.min(1650, Math.max(950, startY * 0.55));
+            const returnStart = performance.now();
+            await new Promise<void>((resolve, reject) => {
+              const step = (now: number) => {
+                if (epochRef.current !== epoch) {
+                  reject(new Error("cancelled"));
+                  return;
+                }
+                if (userScrolledDuringTourRef.current) {
+                  resolve();
+                  return;
+                }
+                const t = Math.min(1, ((now - returnStart) * speedRef.current) / returnDur);
+                window.scrollTo(0, startY * (1 - easeInOutCubic(t)));
+                if (t < 1) {
+                  window.requestAnimationFrame(step);
+                } else {
+                  resolve();
+                }
+              };
+              window.requestAnimationFrame(step);
+            });
           }
         }
 
@@ -1093,11 +1406,10 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         restoreAllElements();
         setPhase("idle");
 
-        // Fade out team cursors smoothly, then spawn polite single co-op cursor
         for (const c of activeCursors) {
           c.el.style.opacity = "0";
         }
-        await waitScaled(240, epoch);
+        await waitScaled(320, epoch);
         if (epochRef.current !== epoch) return;
         spawnAmbientCoopCursor();
 
@@ -1106,7 +1418,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         } else {
           hudHideTimerRef.current = window.setTimeout(() => {
             setHudVisible(false);
-          }, 3600);
+          }, 4200);
         }
       } catch {
         // Cancelled via Esc / Go Live / Route navigation
@@ -1171,13 +1483,12 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setSpeedState((prev) => (prev === 1 ? 2 : prev === 2 ? 3 : 1));
   }, []);
 
-  // Route navigation & First-Visit Fast Hero Intro
+  // Route navigation & First-Visit Hero Intro
   useEffect(() => {
     if (typeof window === "undefined") return;
     const currentRoute = pathname ?? "/";
     if (!currentRoute) return;
 
-    // Clean up any previous route rebuild state immediately
     epochRef.current += 1;
     clearHudTimer();
     restoreAllElements();
@@ -1191,7 +1502,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.sessionStorage.setItem(SWARM_INTRO_SESSION_KEY, "1");
       const timer = window.setTimeout(() => {
         executeSwarmSequence("hero");
-      }, 90);
+      }, 110);
       return () => window.clearTimeout(timer);
     }
 
@@ -1206,7 +1517,6 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
 
-      // Alt + Shift + S -> Toggle Swarm Rebuild
       if (e.altKey && e.shiftKey && e.code === "KeyS") {
         e.preventDefault();
         if (phaseRef.current !== "idle") {
@@ -1217,14 +1527,12 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
-      // Alt + Shift + B -> Toggle Blueprint Inspect Mode
       if (e.altKey && e.shiftKey && e.code === "KeyB") {
         e.preventDefault();
         toggleBlueprintMode();
         return;
       }
 
-      // Active HUD shortcuts
       if (phaseRef.current !== "idle" || hudVisible) {
         if (e.key === "Escape" || e.key === "l" || e.key === "L") {
           e.preventDefault();
@@ -1301,7 +1609,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <SwarmContext.Provider value={contextValue}>
       {children}
 
-      {/* Viewport Overlay Portal for Inspect, Blueprints, and Multiplayer Cursors */}
+      {/* Viewport Overlay Portal for Inspect, Blueprints, and Swarm Bot Cursors */}
       <div className={styles.overlayRoot} data-swarm-ignore="true" aria-hidden="true">
         <div ref={inspectLayerRef} className={styles.inspectLayer}>
           <div ref={guideHRef} className={styles.guideH} />
@@ -1319,6 +1627,44 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         <div ref={wireLayerRef} className={styles.wireLayer} />
         <div ref={cursorLayerRef} className={styles.cursorLayer} />
+      </div>
+
+      {/* Custom Multiplayer User Cursor Layer (0ms lag, stays above Lightbox) */}
+      <div
+        ref={userCursorLayerRef}
+        className={styles.userCursorLayer}
+        data-swarm-ignore="true"
+        aria-hidden="true"
+      >
+        <div ref={userCursorRootRef} className={styles.userCursorRoot}>
+          <div className={styles.userCursorInner}>
+            <svg
+              ref={userCursorSvgRef}
+              className={styles.userCursorSvg}
+              width="18"
+              height="18"
+              viewBox="0 0 18 18"
+              fill="none"
+              aria-hidden="true"
+            >
+              <title>User cursor</title>
+              <path
+                d="M1.8 1.5L7.6 15.8L10.1 10.1L15.8 7.6L1.8 1.5Z"
+                fill="#6366f1"
+                stroke="#ffffff"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <div ref={userCursorPillRef} className={styles.userCursorPill}>
+              <span className={styles.userCursorDot} />
+              <span>You</span>
+              <span ref={userCursorActionRef} className={styles.userCursorAction}>
+                Exploring
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Interactive Swarm Control HUD Dock */}

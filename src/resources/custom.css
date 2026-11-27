@@ -16,17 +16,37 @@
 [data-swarm-conceal="revealed"] {
   opacity: 1 !important;
   visibility: visible !important;
-  animation: swarmElementSnap 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  animation: swarmElementSnap 380ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes swarmElementSnap {
   0% {
-    opacity: 0.28;
+    opacity: 0.22;
     transform: scale(0.99);
   }
   100% {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Custom Multiplayer User Cursor (Desktop fine-pointer devices only) */
+@media (hover: hover) and (pointer: fine) {
+  html[data-custom-cursor="true"],
+  html[data-custom-cursor="true"] *,
+  html[data-custom-cursor="true"] *::before,
+  html[data-custom-cursor="true"] *::after {
+    cursor: none !important;
+  }
+
+  /* Preserve native I-beam caret inside text inputs if any exist */
+  html[data-custom-cursor="true"] input[type="text"],
+  html[data-custom-cursor="true"] input[type="email"],
+  html[data-custom-cursor="true"] input[type="password"],
+  html[data-custom-cursor="true"] input[type="search"],
+  html[data-custom-cursor="true"] textarea,
+  html[data-custom-cursor="true"] [contenteditable="true"] {
+    cursor: text !important;
   }
 }
 
