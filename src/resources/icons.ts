@@ -1,11 +1,13 @@
 import type { IconType } from "react-icons";
 
 import {
+  HiArrowLeft,
   HiArrowPath,
   HiArrowRight,
   HiArrowTopRightOnSquare,
   HiArrowUpRight,
   HiCalendarDays,
+  HiCheck,
   HiEnvelope,
   HiOutlineDocument,
   HiOutlineEye,
@@ -56,7 +58,9 @@ import {
 export const iconLibrary: Record<string, IconType> = {
   arrowUpRight: HiArrowUpRight,
   arrowRight: HiArrowRight,
+  arrowLeft: HiArrowLeft,
   refresh: HiArrowPath,
+  check: HiCheck,
   email: HiEnvelope,
   globe: HiOutlineGlobeAsiaAustralia,
   person: PiUserCircleDuotone,

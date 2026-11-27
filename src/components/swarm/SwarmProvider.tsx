@@ -326,9 +326,13 @@ function celebrateSlot(
   }
 }
 
-// Pick a strictly FREE agent (busySlotId === null) so no two active slots ever share a cursor
-function claimFreeAgentForSlot(agents: AgentRuntime[], sr: SlotRuntime): AgentRuntime | null {
-  if (sr.reservedAgentId !== null) {
+// Pick a strictly FREE agent (busySlotId === null) within active crew size
+function claimFreeAgentForSlot(
+  agents: AgentRuntime[],
+  sr: SlotRuntime,
+  maxAgents: number,
+): AgentRuntime | null {
+  if (sr.reservedAgentId !== null && sr.reservedAgentId < maxAgents) {
     const reserved = agents[sr.reservedAgentId];
     if (reserved && reserved.busySlotId === null) {
       return reserved;
@@ -341,6 +345,7 @@ function claimFreeAgentForSlot(agents: AgentRuntime[], sr: SlotRuntime): AgentRu
   let bestScore = Number.POSITIVE_INFINITY;
 
   for (const ag of agents) {
+    if (ag.spec.id >= maxAgents) continue;
     if (ag.busySlotId !== null) continue;
     // Prefer agents not currently scouting a different slot unless needed
     const scoutingOtherPenalty = ag.scoutSlotId !== null && ag.scoutSlotId !== sr.slot.id ? 10 : 0;
@@ -729,9 +734,16 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const modalOpen = isFullscreenModalOpen();
+      const maxAgents = vw < 640 ? 4 : SWARM_AGENTS.length;
 
       if (agentLayerRef.current) {
         agentLayerRef.current.style.opacity = modalOpen ? "0" : "1";
+      }
+      if (userCursorLayerRef.current) {
+        userCursorLayerRef.current.style.opacity = modalOpen || vw <= 768 ? "0" : "1";
+      }
+      if (modalOpen || vw <= 768) {
+        document.documentElement.removeAttribute("data-custom-cursor");
       }
 
       const curMode = modeRef.current;
@@ -794,6 +806,11 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         // 2. Lookahead Scouting: Free agents claim & pre-hover near in-viewport waiting slots only
         for (const ag of agents) {
+          if (ag.spec.id >= maxAgents) {
+            ag.scoutSlotId = null;
+            ag.busySlotId = null;
+            continue;
+          }
           if (ag.busySlotId !== null) {
             ag.scoutSlotId = null;
             continue;
@@ -864,7 +881,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             sr.delayRemaining -= dt * speedBoost;
             if (sr.delayRemaining > 0) continue;
 
-            const chosen = claimFreeAgentForSlot(agents, sr);
+            const chosen = claimFreeAgentForSlot(agents, sr, maxAgents);
             if (!chosen) {
               // All 8 agents are simultaneously busy right now! Wait for the very next free agent
               sr.delayRemaining = 0.03;
@@ -1279,6 +1296,11 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
         for (let i = 0; i < agents.length; i++) {
           const ag = agents[i];
+          if (i >= maxAgents) {
+            ag.el.style.display = "none";
+            continue;
+          }
+          ag.el.style.display = "block";
 
           const liveBusySlot =
             ag.busySlotId !== null
@@ -1306,9 +1328,9 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               // Clockwise elliptical Finale Ring framing "Thanks for scrolling." & buttons cleanly
               const cx = finaleRect.left + finaleRect.width * 0.5;
               const cy = finaleRect.top + finaleRect.height * 0.44;
-              const rx = Math.min(355, Math.max(250, vw * 0.36));
-              const ry = Math.min(156, Math.max(128, finaleRect.height * 0.42));
-              const angle = nowSec * 0.52 + (i * Math.PI * 2) / agents.length;
+              const rx = Math.min(355, Math.max(150, vw * 0.36));
+              const ry = Math.min(156, Math.max(116, finaleRect.height * 0.42));
+              const angle = nowSec * 0.52 + (i * Math.PI * 2) / maxAgents;
 
               targetX = cx + Math.cos(angle) * rx;
               targetY = cy + Math.sin(angle) * ry;
@@ -1398,7 +1420,13 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
     const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse" || !finePointer || !userCursorRootRef.current) {
+      if (
+        e.pointerType !== "mouse" ||
+        !finePointer ||
+        window.innerWidth <= 768 ||
+        isFullscreenModalOpen() ||
+        !userCursorRootRef.current
+      ) {
         userPointerRef.current.active = false;
         userCursorRootRef.current?.classList.remove(styles.userCursorVisible);
         document.documentElement.removeAttribute("data-custom-cursor");
@@ -1460,7 +1488,15 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const pauseAutoOnManualScroll = () => {
       if (autoScrollRef.current) {
         autoScrollRef.current = false;
+        document.documentElement.removeAttribute("data-swarm-autoscroll");
         setAutoScrolling(false);
+      }
+    };
+
+    const onAnchorOrTocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest("a[href^='#'], [data-toc-jump]")) {
+        pauseAutoOnManualScroll();
       }
     };
 
@@ -1481,6 +1517,8 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     window.addEventListener("pointerup", onPointerUp, { passive: true });
     window.addEventListener("pointercancel", onPointerUp, { passive: true });
     document.addEventListener("mouseout", onMouseOut, { passive: true });
+    document.addEventListener("click", onAnchorOrTocClick, true);
+    window.addEventListener("swarm:pause-autoscroll", pauseAutoOnManualScroll);
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchmove", pauseAutoOnManualScroll, { passive: true });
     window.addEventListener("keydown", onKeyDown);
@@ -1491,6 +1529,8 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
       document.removeEventListener("mouseout", onMouseOut);
+      document.removeEventListener("click", onAnchorOrTocClick, true);
+      window.removeEventListener("swarm:pause-autoscroll", pauseAutoOnManualScroll);
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchmove", pauseAutoOnManualScroll);
       window.removeEventListener("keydown", onKeyDown);
@@ -1659,9 +1699,9 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         </section>
       )}
 
-      {/* Minimalist 2-Corner Floating HUD */}
+      {/* Unified Bottom-Right Floating HUD */}
       {mode !== "gate" && (
-        <>
+        <div className={styles.hudCluster} data-swarm-ignore="true">
           <button
             type="button"
             data-swarm-ignore="true"
@@ -1695,7 +1735,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               </span>
             </button>
           )}
-        </>
+        </div>
       )}
 
       {/* Custom Multiplayer User Cursor ("You") */}

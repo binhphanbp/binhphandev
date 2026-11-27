@@ -1,7 +1,7 @@
 "use client";
 
-import React from "react";
 import { Column, Flex, Text } from "@once-ui-system/core";
+import type React from "react";
 import styles from "./about.module.scss";
 
 interface TableOfContentsProps {
@@ -20,6 +20,9 @@ interface TableOfContentsProps {
 
 const TableOfContents: React.FC<TableOfContentsProps> = ({ structure, about }) => {
   const scrollTo = (id: string, offset: number) => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("swarm:pause-autoscroll"));
+    }
     const element = document.getElementById(id);
     if (element) {
       const elementPosition = element.getBoundingClientRect().top;
@@ -36,7 +39,10 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ structure, about }) =
 
   return (
     <Column
+      as="nav"
+      aria-label="About sections"
       left="0"
+      className={styles.tocFixed}
       style={{
         top: "50%",
         transform: "translateY(-50%)",
@@ -45,41 +51,34 @@ const TableOfContents: React.FC<TableOfContentsProps> = ({ structure, about }) =
       position="fixed"
       paddingLeft="24"
       gap="32"
-      m={{ hide: true }}
     >
       {structure
         .filter((section) => section.display)
-        .map((section, sectionIndex) => (
-          <Column key={sectionIndex} gap="12">
-            <Flex
-              cursor="interactive"
-              className={styles.hover}
-              gap="8"
-              vertical="center"
-              onClick={() => scrollTo(section.title, 80)}
+        .map((section) => (
+          <Column key={section.title} gap="12">
+            <button
+              type="button"
+              data-toc-jump="true"
+              className={styles.tocBtn}
+              onClick={() => scrollTo(section.title, 88)}
             >
-              <Flex height="1" minWidth="16" background="neutral-strong"></Flex>
-              <Text>{section.title}</Text>
-            </Flex>
-            {about.tableOfContent.subItems && (
-              <>
-                {section.items.map((item, itemIndex) => (
-                  <Flex
-                    l={{ hide: true }}
-                    key={itemIndex}
-                    style={{ cursor: "pointer" }}
-                    className={styles.hover}
-                    gap="12"
-                    paddingLeft="24"
-                    vertical="center"
-                    onClick={() => scrollTo(item, 80)}
-                  >
-                    <Flex height="1" minWidth="8" background="neutral-strong"></Flex>
-                    <Text>{item}</Text>
-                  </Flex>
-                ))}
-              </>
-            )}
+              <Flex height="1" minWidth="16" background="neutral-strong" />
+              <Text variant="body-default-s">{section.title}</Text>
+            </button>
+            {about.tableOfContent.subItems &&
+              section.items.map((item) => (
+                <button
+                  type="button"
+                  data-toc-jump="true"
+                  key={item}
+                  className={styles.tocBtn}
+                  style={{ paddingLeft: "24px" }}
+                  onClick={() => scrollTo(item, 88)}
+                >
+                  <Flex height="1" minWidth="8" background="neutral-strong" />
+                  <Text variant="body-default-xs">{item}</Text>
+                </button>
+              ))}
           </Column>
         ))}
     </Column>

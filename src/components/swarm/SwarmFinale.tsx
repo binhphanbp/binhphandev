@@ -1,12 +1,30 @@
 "use client";
 
 import { Badge, Button, Column, Heading, Line, Row, Text } from "@once-ui-system/core";
+import { usePathname } from "next/navigation";
 import type React from "react";
+import { useEffect, useState } from "react";
 import { useSwarm } from "./SwarmProvider";
 import styles from "./SwarmStudio.module.scss";
 
 export const SwarmFinale: React.FC = () => {
+  const pathname = usePathname();
   const { mode, replayBuild, viewFinalDesign } = useSwarm();
+  const [isNotFound, setIsNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!pathname) return;
+    const checkNotFound = () => {
+      setIsNotFound(document.querySelector("[data-not-found-page='true']") !== null);
+    };
+    checkNotFound();
+    const timer = window.setTimeout(checkNotFound, 80);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
+
+  if (isNotFound) {
+    return null;
+  }
 
   return (
     <section
@@ -38,7 +56,7 @@ export const SwarmFinale: React.FC = () => {
         </div>
 
         <div data-swarm-piece="type" style={{ width: "100%" }}>
-          <Heading as="h2" variant="display-strong-m" wrap="balance" align="center">
+          <Heading as="div" variant="display-strong-m" wrap="balance" align="center">
             Thanks for scrolling.
           </Heading>
         </div>

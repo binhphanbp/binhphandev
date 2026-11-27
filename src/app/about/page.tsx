@@ -65,18 +65,7 @@ export default function About() {
           image: `${baseURL}${person.avatar}`,
         }}
       />
-      {about.tableOfContent.display && (
-        <Column
-          left="0"
-          style={{ top: "50%", transform: "translateY(-50%)" }}
-          position="fixed"
-          paddingLeft="24"
-          gap="32"
-          s={{ hide: true }}
-        >
-          <TableOfContents structure={structure} about={about} />
-        </Column>
-      )}
+      {about.tableOfContent.display && <TableOfContents structure={structure} about={about} />}
       <Row fillWidth s={{ direction: "column" }} horizontal="center">
         {about.avatar.display && (
           <Column
@@ -148,12 +137,12 @@ export default function About() {
                 </Row>
               </div>
             )}
-            <div data-swarm-piece="type" style={{ width: "100%" }}>
+            <div data-swarm-piece="type" className={styles.textAlign} style={{ width: "100%" }}>
               <Heading className={styles.textAlign} variant="display-strong-xl">
                 {person.name}
               </Heading>
             </div>
-            <div data-swarm-piece="type" style={{ width: "100%" }}>
+            <div data-swarm-piece="type" className={styles.textAlign} style={{ width: "100%" }}>
               <Text
                 className={styles.textAlign}
                 variant="display-default-xs"
@@ -163,7 +152,11 @@ export default function About() {
               </Text>
             </div>
             {social.length > 0 && (
-              <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+              <div
+                data-swarm-piece="pop"
+                className={styles.blockAlign}
+                style={{ display: "inline-flex" }}
+              >
                 <Row
                   className={styles.blockAlign}
                   paddingTop="20"
