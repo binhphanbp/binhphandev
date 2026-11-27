@@ -93,25 +93,21 @@ export default function About() {
             flex={3}
             horizontal="center"
           >
-            <div
-              data-swarm-hero="true"
-              data-swarm-target="about-avatar"
-              data-swarm-inspect="true"
-              data-swarm-label="Profile · Avatar"
-              style={{ display: "inline-flex" }}
-            >
+            <div data-swarm-piece="drag" style={{ display: "inline-flex" }}>
               <Avatar src={person.avatar} size="xl" />
             </div>
-            <Row gap="8" vertical="center">
-              <Icon onBackground="accent-weak" name="globe" />
-              {person.location}
-            </Row>
+            <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+              <Row gap="8" vertical="center">
+                <Icon onBackground="accent-weak" name="globe" />
+                {person.location}
+              </Row>
+            </div>
             {person.languages && person.languages.length > 0 && (
               <Row wrap gap="8">
                 {person.languages.map((language, index) => (
-                  <Tag key={index} size="l">
-                    {language}
-                  </Tag>
+                  <div key={index} data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+                    <Tag size="l">{language}</Tag>
+                  </div>
                 ))}
               </Row>
             )}
@@ -150,25 +146,12 @@ export default function About() {
                 />
               </Row>
             )}
-            <div
-              data-swarm-hero="true"
-              data-swarm-target="about-heading"
-              data-swarm-kind="typewriter"
-              data-swarm-inspect="true"
-              data-swarm-label="About · NameHeading"
-              style={{ width: "100%" }}
-            >
+            <div data-swarm-piece="type" style={{ width: "100%" }}>
               <Heading className={styles.textAlign} variant="display-strong-xl">
                 {person.name}
               </Heading>
             </div>
-            <div
-              data-swarm-hero="true"
-              data-swarm-target="about-role"
-              data-swarm-inspect="true"
-              data-swarm-label="About · Role"
-              style={{ width: "100%" }}
-            >
+            <div data-swarm-piece="type" style={{ width: "100%" }}>
               <Text
                 className={styles.textAlign}
                 variant="display-default-xs"
@@ -178,56 +161,53 @@ export default function About() {
               </Text>
             </div>
             {social.length > 0 && (
-              <Row
-                className={styles.blockAlign}
-                paddingTop="20"
-                paddingBottom="8"
-                gap="8"
-                wrap
-                horizontal="center"
-                fitWidth
-                data-border="rounded"
-              >
-                {social
-                  .filter((item) => item.essential)
-                  .map(
-                    (item) =>
-                      item.link && (
-                        <React.Fragment key={item.name}>
-                          <Row s={{ hide: true }}>
-                            <Button
-                              key={item.name}
-                              href={item.link}
-                              prefixIcon={item.icon}
-                              label={item.name}
-                              size="s"
-                              weight="default"
-                              variant="secondary"
-                            />
-                          </Row>
-                          <Row hide s={{ hide: false }}>
-                            <IconButton
-                              size="l"
-                              key={`${item.name}-icon`}
-                              href={item.link}
-                              icon={item.icon}
-                              variant="secondary"
-                            />
-                          </Row>
-                        </React.Fragment>
-                      ),
-                  )}
-              </Row>
+              <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+                <Row
+                  className={styles.blockAlign}
+                  paddingTop="20"
+                  paddingBottom="8"
+                  gap="8"
+                  wrap
+                  horizontal="center"
+                  fitWidth
+                  data-border="rounded"
+                >
+                  {social
+                    .filter((item) => item.essential)
+                    .map(
+                      (item) =>
+                        item.link && (
+                          <React.Fragment key={item.name}>
+                            <Row s={{ hide: true }}>
+                              <Button
+                                key={item.name}
+                                href={item.link}
+                                prefixIcon={item.icon}
+                                label={item.name}
+                                size="s"
+                                weight="default"
+                                variant="secondary"
+                              />
+                            </Row>
+                            <Row hide s={{ hide: false }}>
+                              <IconButton
+                                size="l"
+                                key={`${item.name}-icon`}
+                                href={item.link}
+                                icon={item.icon}
+                                variant="secondary"
+                              />
+                            </Row>
+                          </React.Fragment>
+                        ),
+                    )}
+                </Row>
+              </div>
             )}
           </Column>
 
           {about.intro.display && (
-            <div
-              data-swarm-target="about-intro"
-              data-swarm-inspect="true"
-              data-swarm-label="About · Introduction"
-              style={{ width: "100%" }}
-            >
+            <div data-swarm-piece="type" style={{ width: "100%" }}>
               <Column textVariant="body-default-l" fillWidth gap="m" marginBottom="xl">
                 {about.intro.description}
               </Column>
@@ -243,10 +223,7 @@ export default function About() {
                 {about.work.experiences.map((experience, index) => (
                   <div
                     key={`${experience.company}-${experience.role}-${index}`}
-                    data-swarm-target="experience-card"
-                    data-swarm-group="experiences"
-                    data-swarm-inspect="true"
-                    data-swarm-label={`Experience · ${experience.company}`}
+                    data-swarm-piece="draw"
                     style={{ width: "100%" }}
                   >
                     <Column fillWidth>
@@ -311,10 +288,7 @@ export default function About() {
                 {about.studies.institutions.map((institution, index) => (
                   <div
                     key={`${institution.name}-${index}`}
-                    data-swarm-target="study-card"
-                    data-swarm-group="studies"
-                    data-swarm-inspect="true"
-                    data-swarm-label={`Education · ${institution.name.slice(0, 24)}`}
+                    data-swarm-piece="draw"
                     style={{ width: "100%" }}
                   >
                     <Column fillWidth gap="4">
@@ -343,27 +317,30 @@ export default function About() {
               </Heading>
               <Column fillWidth gap="l">
                 {about.technical.skills.map((skill, index) => (
-                  <div
-                    key={`${skill.title}-${index}`}
-                    data-swarm-target="skill-card"
-                    data-swarm-group="skills"
-                    data-swarm-inspect="true"
-                    data-swarm-label={`SkillGroup · ${skill.title}`}
-                    style={{ width: "100%" }}
-                  >
+                  <div key={`${skill.title}-${index}`} style={{ width: "100%" }}>
                     <Column fillWidth gap="4">
-                      <Text id={skill.title} variant="heading-strong-l">
-                        {skill.title}
-                      </Text>
-                      <Text variant="body-default-m" onBackground="neutral-weak">
-                        {skill.description}
-                      </Text>
+                      <div data-swarm-piece="type" style={{ width: "100%" }}>
+                        <Text id={skill.title} variant="heading-strong-l">
+                          {skill.title}
+                        </Text>
+                      </div>
+                      <div data-swarm-piece="type" style={{ width: "100%" }}>
+                        <Text variant="body-default-m" onBackground="neutral-weak">
+                          {skill.description}
+                        </Text>
+                      </div>
                       {skill.tags && skill.tags.length > 0 && (
                         <Row wrap gap="8" paddingTop="8">
                           {skill.tags.map((tag, tagIndex) => (
-                            <Tag key={`${skill.title}-${tagIndex}`} size="l" prefixIcon={tag.icon}>
-                              {tag.name}
-                            </Tag>
+                            <div
+                              key={`${skill.title}-${tagIndex}`}
+                              data-swarm-piece="drag"
+                              style={{ display: "inline-flex" }}
+                            >
+                              <Tag size="l" prefixIcon={tag.icon}>
+                                {tag.name}
+                              </Tag>
+                            </div>
                           ))}
                         </Row>
                       )}

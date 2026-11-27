@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, Column, Media, Row, Avatar, Text } from "@once-ui-system/core";
-import { formatDate } from "@/utils/formatDate";
+import { Avatar, Card, Column, Media, Row, Text } from "@once-ui-system/core";
 import { person } from "@/resources";
+import { formatDate } from "@/utils/formatDate";
 
 interface PostProps {
   post: any;
@@ -12,27 +12,21 @@ interface PostProps {
 
 export default function Post({ post, thumbnail, direction }: PostProps) {
   return (
-    <div
-      data-swarm-target="blog-post"
-      data-swarm-group="blog-posts"
-      data-swarm-inspect="true"
-      data-swarm-label={`PostCard · ${post.metadata.tag || "Highlight"}`}
-      style={{ width: "100%", display: "flex" }}
+    <Card
+      fillWidth
+      key={post.slug}
+      href={`/blog/${post.slug}`}
+      transition="micro-medium"
+      direction={direction}
+      border="transparent"
+      background="transparent"
+      padding="4"
+      radius="l-4"
+      gap={direction === "column" ? undefined : "24"}
+      s={{ direction: "column" }}
     >
-      <Card
-        fillWidth
-        key={post.slug}
-        href={`/blog/${post.slug}`}
-        transition="micro-medium"
-        direction={direction}
-        border="transparent"
-        background="transparent"
-        padding="4"
-        radius="l-4"
-        gap={direction === "column" ? undefined : "24"}
-        s={{ direction: "column" }}
-      >
-        {post.metadata.image && thumbnail && (
+      {post.metadata.image && thumbnail && (
+        <div data-swarm-piece="drag" style={{ width: "100%" }}>
           <Media
             priority
             sizes="(max-width: 768px) 100vw, 640px"
@@ -40,12 +34,14 @@ export default function Post({ post, thumbnail, direction }: PostProps) {
             cursor="interactive"
             radius="l"
             src={post.metadata.image}
-            alt={"Thumbnail of " + post.metadata.title}
+            alt={`Thumbnail of ${post.metadata.title}`}
             aspectRatio="16 / 9"
           />
-        )}
-        <Row fillWidth>
-          <Column maxWidth={28} paddingY="24" paddingX="l" gap="20" vertical="center">
+        </div>
+      )}
+      <Row fillWidth>
+        <Column maxWidth={28} paddingY="24" paddingX="l" gap="20" vertical="center">
+          <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
             <Row gap="24" vertical="center">
               <Row vertical="center" gap="16">
                 <Avatar src={person.avatar} size="s" />
@@ -55,17 +51,21 @@ export default function Post({ post, thumbnail, direction }: PostProps) {
                 {formatDate(post.metadata.publishedAt, false)}
               </Text>
             </Row>
+          </div>
+          <div data-swarm-piece="type" style={{ width: "100%" }}>
             <Text variant="heading-strong-l" wrap="balance">
               {post.metadata.title}
             </Text>
-            {post.metadata.tag && (
+          </div>
+          {post.metadata.tag && (
+            <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
               <Text variant="label-strong-s" onBackground="neutral-weak">
                 {post.metadata.tag}
               </Text>
-            )}
-          </Column>
-        </Row>
-      </Card>
-    </div>
+            </div>
+          )}
+        </Column>
+      </Row>
+    </Card>
   );
 }

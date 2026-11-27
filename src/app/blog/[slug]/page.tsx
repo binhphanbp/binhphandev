@@ -100,14 +100,7 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
             <Text variant="body-default-xs" onBackground="neutral-weak" marginBottom="12">
               {post.metadata.publishedAt && formatDate(post.metadata.publishedAt)}
             </Text>
-            <div
-              data-swarm-hero="true"
-              data-swarm-target="article-title"
-              data-swarm-kind="typewriter"
-              data-swarm-inspect="true"
-              data-swarm-label="Article · Title"
-              style={{ width: "100%", textAlign: "center" }}
-            >
+            <div data-swarm-piece="type" style={{ width: "100%", textAlign: "center" }}>
               <Heading variant="display-strong-m">{post.metadata.title}</Heading>
             </div>
             {post.metadata.subtitle && (
@@ -130,13 +123,7 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
             </Row>
           </Row>
           {post.metadata.image && (
-            <div
-              data-swarm-hero="true"
-              data-swarm-target="article-cover"
-              data-swarm-inspect="true"
-              data-swarm-label="Article · CoverMedia"
-              style={{ width: "100%" }}
-            >
+            <div data-swarm-piece="drag" style={{ width: "100%" }}>
               <Media
                 src={post.metadata.image}
                 alt={post.metadata.title}

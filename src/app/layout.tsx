@@ -13,7 +13,14 @@ import {
   RevealFx,
   SpacingToken,
 } from "@once-ui-system/core";
-import { Footer, Header, RouteGuard, Providers, SwarmProvider } from "@/components";
+import {
+  Footer,
+  Header,
+  Providers,
+  RouteGuard,
+  SwarmFinale,
+  SwarmProvider,
+} from "@/components";
 import { baseURL, effects, fonts, style, dataStyle, home } from "@/resources";
 
 export async function generateMetadata() {
@@ -163,6 +170,7 @@ export default async function RootLayout({
                 <RouteGuard>{children}</RouteGuard>
               </Flex>
             </Flex>
+            <SwarmFinale />
             <Footer />
           </SwarmProvider>
         </Column>

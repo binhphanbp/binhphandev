@@ -28,14 +28,7 @@ export default function Work() {
           image: `${baseURL}${person.avatar}`,
         }}
       />
-      <div
-        data-swarm-hero="true"
-        data-swarm-target="work-heading"
-        data-swarm-kind="typewriter"
-        data-swarm-inspect="true"
-        data-swarm-label="Work · PageHeading"
-        style={{ width: "100%" }}
-      >
+      <div data-swarm-piece="type" style={{ width: "100%" }}>
         <Heading marginBottom="l" variant="heading-strong-xl" align="center">
           {work.title}
         </Heading>

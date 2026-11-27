@@ -4,132 +4,207 @@ type WebkitWindow = Window & {
   webkitAudioContext?: typeof AudioContext;
 };
 
+// Soothing felt-piano / warm Rhodes chord progression (Fmaj9 -> Cmaj9 -> Am9 -> G6add9)
+const CHORD_PROGRESSION: number[][] = [
+  [174.61, 220.0, 261.63, 329.63, 392.0],
+  [130.81, 196.0, 261.63, 329.63, 392.0],
+  [110.0, 164.81, 220.0, 261.63, 329.63],
+  [98.0, 146.83, 196.0, 246.94, 293.66],
+];
+
+// Harmonized C-major pentatonic sparkle notes
+const SPARKLE_NOTES = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
+
 class SwarmAudioEngine {
   private ctx: AudioContext | null = null;
-  private enabled = true;
-  private lastHoverAt = 0;
-  private listenersAttached = false;
+  private masterGain: GainNode | null = null;
+  private musicTimer: number | null = null;
+  private chordIndex = 0;
+  private sparkleIndex = 0;
+  private enabled = false;
+  private lastKeyAt = 0;
+  private lastPopAt = 0;
 
-  public init() {
-    if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem("bp_swarm_sound");
+  public init(): boolean {
+    if (typeof window === "undefined") return false;
+    const saved = window.localStorage.getItem("bp-swarm-music");
     if (saved !== null) {
       this.enabled = saved === "true";
     }
-    if (!this.listenersAttached) {
-      this.listenersAttached = true;
-      const unlock = () => {
-        if (this.enabled) {
-          this.ensureContext(true);
-        }
-      };
-      window.addEventListener("pointerdown", unlock, { passive: true });
-      window.addEventListener("keydown", unlock, { passive: true });
-    }
+    return this.enabled;
   }
 
   public isEnabled(): boolean {
     return this.enabled;
   }
 
-  public setEnabled(next: boolean): void {
-    this.enabled = next;
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("bp_swarm_sound", String(next));
-    }
-    if (next) {
-      this.ensureContext(true);
-      this.playSnap();
-    }
-  }
-
-  public unlockNow(): void {
-    if (this.enabled) {
-      this.ensureContext(true);
-    }
-  }
-
-  private ensureContext(resumeIfSuspended = false): AudioContext | null {
-    if (!this.enabled || typeof window === "undefined") return null;
+  private ensureContext(): AudioContext | null {
+    if (typeof window === "undefined") return null;
     if (!this.ctx) {
       const AudioCtor = window.AudioContext || (window as WebkitWindow).webkitAudioContext;
       if (!AudioCtor) return null;
       try {
         this.ctx = new AudioCtor();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
       } catch {
         return null;
       }
     }
-    if (resumeIfSuspended && this.ctx.state === "suspended") {
+    if (this.ctx.state === "suspended") {
       this.ctx.resume().catch(() => {});
     }
-    if (this.ctx.state !== "running") return null;
     return this.ctx;
   }
 
-  private playTone(
-    startFreq: number,
-    endFreq: number,
-    durationMs: number,
-    peakGain: number,
-    type: OscillatorType = "sine",
-    delaySec = 0,
-  ) {
-    const ctx = this.ensureContext(false);
-    if (!ctx) return;
+  public startMusic(): void {
+    this.enabled = true;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("bp-swarm-music", "true");
+    }
+    const ctx = this.ensureContext();
+    if (!ctx || !this.masterGain) return;
 
-    const start = ctx.currentTime + delaySec;
-    const dur = durationMs / 1000;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    const now = ctx.currentTime;
+    this.masterGain.gain.cancelScheduledValues(now);
+    this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
+    this.masterGain.gain.linearRampToValueAtTime(0.55, now + 1.2);
 
-    osc.type = type;
-    osc.frequency.setValueAtTime(startFreq, start);
-    osc.frequency.exponentialRampToValueAtTime(Math.max(35, endFreq), start + dur);
+    if (this.musicTimer === null && typeof window !== "undefined") {
+      this.playWarmChord();
+      this.musicTimer = window.setInterval(() => {
+        if (this.enabled && document.visibilityState === "visible") {
+          this.playWarmChord();
+        }
+      }, 3600);
+    }
+  }
 
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.linearRampToValueAtTime(peakGain, start + Math.min(0.004, dur * 0.2));
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  public stopMusic(): void {
+    this.enabled = false;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("bp-swarm-music", "false");
+    }
+    if (this.musicTimer !== null && typeof window !== "undefined") {
+      window.clearInterval(this.musicTimer);
+      this.musicTimer = null;
+    }
+    if (this.ctx && this.masterGain) {
+      const now = this.ctx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
+      this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    }
+  }
+
+  public toggle(): boolean {
+    if (this.enabled) {
+      this.stopMusic();
+    } else {
+      this.startMusic();
+    }
+    return this.enabled;
+  }
+
+  private playWarmChord(): void {
+    const ctx = this.ctx;
+    const out = this.masterGain;
+    if (!ctx || !out || ctx.state !== "running") return;
+
+    const notes = CHORD_PROGRESSION[this.chordIndex % CHORD_PROGRESSION.length];
+    this.chordIndex += 1;
+
+    for (let i = 0; i < notes.length; i++) {
+      const freq = notes[i];
+      const start = ctx.currentTime + i * 0.21 + (Math.random() * 0.03 - 0.015);
+      const dur = 3.2;
+
+      const oscMain = ctx.createOscillator();
+      const oscWarm = ctx.createOscillator();
+      const filter = ctx.createBiquadFilter();
+      const noteGain = ctx.createGain();
+
+      oscMain.type = "sine";
+      oscMain.frequency.setValueAtTime(freq, start);
+
+      oscWarm.type = "triangle";
+      oscWarm.frequency.setValueAtTime(freq * 2, start);
+
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(720, start);
+      filter.frequency.exponentialRampToValueAtTime(280, start + dur);
+
+      const warmMix = ctx.createGain();
+      warmMix.gain.setValueAtTime(0.08, start);
+
+      const peak = i === 0 ? 0.042 : 0.028;
+      noteGain.gain.setValueAtTime(0.0001, start);
+      noteGain.gain.linearRampToValueAtTime(peak, start + 0.065);
+      noteGain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+
+      oscMain.connect(filter);
+      oscWarm.connect(warmMix);
+      warmMix.connect(filter);
+      filter.connect(noteGain);
+      noteGain.connect(out);
+
+      oscMain.start(start);
+      oscWarm.start(start);
+      oscMain.stop(start + dur + 0.05);
+      oscWarm.stop(start + dur + 0.05);
+    }
+  }
+
+  public playKeyTick(): void {
+    if (!this.enabled || !this.ctx || !this.masterGain || this.ctx.state !== "running") return;
+    const nowMs = performance.now();
+    if (nowMs - this.lastKeyAt < 52) return;
+    this.lastKeyAt = nowMs;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "triangle";
+    const f = 240 + (Math.random() - 0.5) * 45;
+    osc.frequency.setValueAtTime(f, now);
+    osc.frequency.exponentialRampToValueAtTime(90, now + 0.022);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.028, now + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.024);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.start(start);
-    osc.stop(start + dur + 0.005);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.028);
   }
 
-  public playKey() {
-    const jitter = (Math.random() - 0.5) * 55;
-    this.playTone(215 + jitter, 78, 24, 0.032, "triangle");
-    this.playTone(1150 + jitter * 2, 420, 9, 0.012, "sine");
-  }
+  public playSparklePop(): void {
+    if (!this.enabled || !this.ctx || !this.masterGain || this.ctx.state !== "running") return;
+    const nowMs = performance.now();
+    if (nowMs - this.lastPopAt < 75) return;
+    this.lastPopAt = nowMs;
 
-  public playDragStart() {
-    this.playTone(330, 510, 26, 0.022, "sine");
-  }
+    const freq = SPARKLE_NOTES[this.sparkleIndex % SPARKLE_NOTES.length];
+    this.sparkleIndex += 1;
 
-  public playSnap() {
-    this.playTone(790, 390, 32, 0.036, "sine");
-  }
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
 
-  public playDuplicate() {
-    this.playTone(460, 560, 26, 0.024, "sine", 0);
-    this.playTone(690, 820, 32, 0.026, "sine", 0.035);
-  }
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 1.004, now + 0.24);
 
-  public playHoverTick() {
-    const now = typeof performance !== "undefined" ? performance.now() : Date.now();
-    if (now - this.lastHoverAt < 85) return;
-    this.lastHoverAt = now;
-    this.playTone(960, 620, 12, 0.01, "sine");
-  }
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.036, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
 
-  public playComplete() {
-    const chord = [523.25, 659.25, 783.99, 987.77, 1174.66];
-    for (let idx = 0; idx < chord.length; idx++) {
-      const freq = chord[idx];
-      this.playTone(freq, freq * 0.998, 280, 0.026, "sine", idx * 0.042);
-    }
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.28);
   }
 }
 

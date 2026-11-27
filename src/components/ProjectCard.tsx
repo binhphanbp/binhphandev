@@ -9,6 +9,7 @@ import {
   SmartLink,
   Text,
 } from "@once-ui-system/core";
+import type React from "react";
 
 interface ProjectCardProps {
   href: string;
@@ -30,17 +31,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   avatars,
   link,
 }) => {
-  const shortTitle = title ? title.split("-")[0].trim() : "Project";
-
   return (
-    <div
-      data-swarm-target="project-card"
-      data-swarm-group="projects"
-      data-swarm-inspect="true"
-      data-swarm-label={`ProjectCard · ${shortTitle}`}
-      style={{ width: "100%" }}
-    >
-      <Column fillWidth gap="m">
+    <Column fillWidth gap="m">
+      <div data-swarm-piece="drag" style={{ width: "100%" }}>
         <Carousel
           sizes="(max-width: 960px) 100vw, 960px"
           items={images.map((image) => ({
@@ -48,31 +41,41 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             alt: title,
           }))}
         />
-        <Flex
-          s={{ direction: "column" }}
-          fillWidth
-          paddingX="s"
-          paddingTop="12"
-          paddingBottom="24"
-          gap="l"
-        >
-          {title && (
-            <Flex flex={5}>
+      </div>
+      <Flex
+        s={{ direction: "column" }}
+        fillWidth
+        paddingX="s"
+        paddingTop="12"
+        paddingBottom="24"
+        gap="l"
+      >
+        {title && (
+          <Flex flex={5}>
+            <div data-swarm-piece="type" style={{ width: "100%" }}>
               <Heading as="h2" wrap="balance" variant="heading-strong-xl">
                 {title}
               </Heading>
-            </Flex>
-          )}
-          {(avatars?.length > 0 || description?.trim() || content?.trim()) && (
-            <Column flex={7} gap="16">
-              {avatars?.length > 0 && <AvatarGroup avatars={avatars} size="m" reverse />}
-              {description?.trim() && (
+            </div>
+          </Flex>
+        )}
+        {(avatars?.length > 0 || description?.trim() || content?.trim()) && (
+          <Column flex={7} gap="16">
+            {avatars?.length > 0 && (
+              <div data-swarm-piece="pop" style={{ width: "fit-content" }}>
+                <AvatarGroup avatars={avatars} size="m" reverse />
+              </div>
+            )}
+            {description?.trim() && (
+              <div data-swarm-piece="type" style={{ width: "100%" }}>
                 <Text wrap="balance" variant="body-default-s" onBackground="neutral-weak">
                   {description}
                 </Text>
-              )}
-              <Flex gap="24" wrap>
-                {content?.trim() && (
+              </div>
+            )}
+            <Flex gap="24" wrap>
+              {content?.trim() && (
+                <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
                   <SmartLink
                     suffixIcon="arrowRight"
                     style={{ margin: "0", width: "fit-content" }}
@@ -80,8 +83,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                   >
                     <Text variant="body-default-s">Read case study</Text>
                   </SmartLink>
-                )}
-                {link && (
+                </div>
+              )}
+              {link && (
+                <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
                   <SmartLink
                     suffixIcon="arrowUpRightFromSquare"
                     style={{ margin: "0", width: "fit-content" }}
@@ -89,12 +94,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
                   >
                     <Text variant="body-default-s">View project</Text>
                   </SmartLink>
-                )}
-              </Flex>
-            </Column>
-          )}
-        </Flex>
-      </Column>
-    </div>
+                </div>
+              )}
+            </Flex>
+          </Column>
+        )}
+      </Flex>
+    </Column>
   );
 };

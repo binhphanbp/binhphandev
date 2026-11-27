@@ -1,54 +1,55 @@
-export type SwarmSpeed = 1 | 2 | 3;
+export type SwarmMode = "gate" | "build" | "present";
 
-export type SwarmPhase = "idle" | "hero-intro" | "full-rebuild";
+export type SwarmSkill = "draw" | "type" | "move" | "color";
 
-export type SwarmTargetKind = "nav" | "typewriter" | "box" | "duplicate";
+export type SwarmSlotKind = "draw" | "drag" | "type" | "fill" | "pop" | "line";
 
-export interface SwarmAgent {
-  id: string;
+export interface SwarmAgentSpec {
+  id: number;
   name: string;
-  role: string;
+  skill: SwarmSkill;
   color: string;
+  ink: string;
 }
 
-export interface SwarmTarget {
+export interface SwarmSlot {
   id: string;
   el: HTMLElement;
-  kind: SwarmTargetKind;
-  label: string;
+  kind: SwarmSlotKind;
+  sectionIndex: number;
+  docTop: number;
   textSnapshot?: string;
-  sourceEl?: HTMLElement;
+  dragFrom?: { dx: number; dy: number; tiltDeg: number };
 }
 
-export interface SwarmProgress {
-  current: number;
-  total: number;
-  currentLabel: string;
+export interface SwarmSectionGroup {
+  index: number;
+  triggerScrollY: number;
+  anchorTop: number;
+  slots: SwarmSlot[];
 }
 
 export interface SwarmContextValue {
-  phase: SwarmPhase;
-  isRebuilding: boolean;
-  blueprintMode: boolean;
-  soundEnabled: boolean;
-  tourMode: boolean;
-  speed: SwarmSpeed;
-  progress: SwarmProgress;
-  hudVisible: boolean;
-  startFullRebuild: (options?: { withTour?: boolean }) => void;
-  stopAndGoLive: () => void;
-  toggleBlueprintMode: () => void;
-  toggleSound: () => void;
-  toggleTourMode: () => void;
-  setSpeed: (speed: SwarmSpeed) => void;
-  cycleSpeed: () => void;
+  mode: SwarmMode;
+  autoScrolling: boolean;
+  musicEnabled: boolean;
+  buildProgress: number;
+  isComplete: boolean;
+  enterPortfolio: (withSound: boolean) => void;
+  skipGateToFinal: () => void;
+  replayBuild: () => void;
+  viewFinalDesign: () => void;
+  toggleAutoScroll: () => void;
+  toggleMusic: () => void;
 }
 
-export const SWARM_AGENTS: SwarmAgent[] = [
-  { id: "binh", name: "Binh.tsx", role: "Lead FE", color: "#06b6d4" },
-  { id: "react", name: "React 19", role: "Components", color: "#3b82f6" },
-  { id: "nextjs", name: "Next.js", role: "App Router", color: "#8b5cf6" },
-  { id: "tailwind", name: "Tailwind", role: "Design System", color: "#10b981" },
-  { id: "figma", name: "Figma Spec", role: "Blueprint", color: "#ec4899" },
-  { id: "motion", name: "Motion FX", role: "60fps", color: "#f59e0b" },
+export const SWARM_AGENTS: SwarmAgentSpec[] = [
+  { id: 0, name: "Frame", skill: "draw", color: "#F85023", ink: "#FFFFFF" },
+  { id: 1, name: "Kern", skill: "type", color: "#7B61FF", ink: "#FFFFFF" },
+  { id: 2, name: "Snap", skill: "move", color: "#0D99FF", ink: "#FFFFFF" },
+  { id: 3, name: "Hue", skill: "color", color: "#14AE5C", ink: "#FFFFFF" },
+  { id: 4, name: "Glyph", skill: "type", color: "#E83E8C", ink: "#FFFFFF" },
+  { id: 5, name: "Align", skill: "move", color: "#F59E0B", ink: "#18181B" },
+  { id: 6, name: "Grid", skill: "draw", color: "#0891B2", ink: "#FFFFFF" },
+  { id: 7, name: "Nudge", skill: "move", color: "#65A30D", ink: "#FFFFFF" },
 ];

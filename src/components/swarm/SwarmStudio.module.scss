@@ -1,13 +1,239 @@
+/* ==========================================================================
+   Swarm v2 Studio — Inspired by Joel Califa's Swarm & Figma Multiplayer
+   ========================================================================== */
+
 .overlayRoot {
   position: fixed;
   inset: 0;
-  z-index: 9980;
+  z-index: 9970;
   pointer-events: none;
   overflow: hidden;
   user-select: none;
+  contain: layout style;
 }
 
-/* Custom Multiplayer User Cursor Layer (Always on top, even over Lightbox) */
+.fxLayer,
+.selLayer,
+.agentLayer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.agentLayer {
+  transition: opacity 280ms ease;
+}
+
+/* --------------------------------------------------------------------------
+   1. Entrance Gate (.gateOverlay)
+   -------------------------------------------------------------------------- */
+.gateOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9992;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--page-background, #0a0c10) 82%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  animation: gateFadeIn 320ms ease both;
+}
+
+.gateClosing {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 380ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes gateFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.gateContent {
+  position: relative;
+  z-index: 2;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.gateEyebrow {
+  font-family: var(--font-code), monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #f85023;
+}
+
+.gateTitle {
+  margin: 0;
+  font-family: var(--font-heading), sans-serif;
+  font-size: clamp(36px, 6vw, 52px);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--neutral-on-background-strong, #ffffff);
+}
+
+.gateSubtitle {
+  margin: 0 0 10px;
+  max-width: 340px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--neutral-on-background-weak, #94a3b8);
+}
+
+.gateEnterBtn {
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 156px;
+  height: 52px;
+  padding: 0 28px;
+  border-radius: 999px;
+  border: 2px solid rgba(248, 80, 35, 0.42);
+  background: #18181b;
+  color: #ffffff;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.28),
+    0 0 0 4px rgba(248, 80, 35, 0.14);
+  transition:
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+:global(html[data-theme="dark"]) .gateEnterBtn {
+  background: #ffffff;
+  color: #09090b;
+}
+
+.gateEnterBtn:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow:
+    0 16px 34px rgba(0, 0, 0, 0.34),
+    0 0 0 5px rgba(248, 80, 35, 0.24);
+}
+
+.gateEnterBtn:active {
+  transform: scale(0.98);
+}
+
+.gateSecondaryRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 4px;
+}
+
+.gateTextBtn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px 6px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--neutral-on-background-weak, #94a3b8);
+  transition: color 140ms ease;
+}
+
+.gateTextBtn:hover {
+  color: var(--neutral-on-background-strong, #ffffff);
+  text-decoration: underline;
+}
+
+.gateDot {
+  color: var(--neutral-alpha-medium, rgba(148, 163, 184, 0.4));
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   2. 8 Figma Stemmed Cursor Agents & Custom User Cursor ("You")
+   -------------------------------------------------------------------------- */
+.agentNode {
+  position: fixed;
+  top: 0;
+  left: 0;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.agentBlurred {
+  filter: blur(5px);
+  opacity: 0.55;
+}
+
+.agentArrow {
+  display: block;
+  width: 18px;
+  height: 22px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.32));
+  transform-origin: 2px 2px;
+}
+
+.agentLabel {
+  position: absolute;
+  top: 18px;
+  left: 14px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--c, #0d99ff);
+  color: var(--ink, #ffffff);
+  font-family: var(--font-body), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  will-change: opacity;
+}
+
+.agentRing {
+  position: fixed;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  margin-top: -14px;
+  border-radius: 999px;
+  border: 2px solid var(--c, #0d99ff);
+  pointer-events: none;
+  animation: stRingPop 460ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes stRingPop {
+  0% {
+    transform: scale(0.32);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.68);
+    opacity: 0;
+  }
+}
+
+/* User's Own Multiplayer Cursor ("You") — Always above Gate & Lightbox */
 .userCursorLayer {
   position: fixed;
   inset: 0;
@@ -32,366 +258,100 @@
 }
 
 .userCursorInner {
-  will-change: transform;
   transform-origin: 2px 2px;
-  transition: transform 110ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 100ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .userCursorDown .userCursorInner {
   transform: scale(0.86);
 }
 
-.userCursorInteractive .userCursorSvg {
-  filter:
-    drop-shadow(0 0 6px rgba(99, 102, 241, 0.55))
-    drop-shadow(0 2px 5px rgba(0, 0, 0, 0.35));
-}
-
-.userCursorSvg {
-  display: block;
-  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.36));
-  transform-origin: 2px 2px;
-}
-
-.userCursorPill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: 13px;
-  margin-top: -1px;
-  padding: 2px 8px;
+.userCursorLabel {
+  position: absolute;
+  top: 18px;
+  left: 14px;
+  padding: 3px 9px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: #6366f1;
   color: #ffffff;
-  font-family: var(--font-code), monospace;
+  font-family: var(--font-body), sans-serif;
   font-size: 11px;
-  line-height: 15px;
   font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
-  box-shadow:
-    0 4px 12px rgba(99, 102, 241, 0.35),
-    0 2px 4px rgba(0, 0, 0, 0.22);
-  transition:
-    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
-    background 180ms ease;
+  box-shadow: 0 3px 10px rgba(99, 102, 241, 0.35);
+  transition: transform 140ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.userCursorPillFlipped {
-  transform: translateX(calc(-100% - 18px));
+.userCursorLabelFlipped {
+  transform: translateX(calc(-100% - 16px));
 }
 
-.userCursorInteractive .userCursorPill {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-}
-
-.userCursorDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 999px;
-  background: #a5f3fc;
-  box-shadow: 0 0 6px #a5f3fc;
-}
-
-.userCursorAction {
-  opacity: 0.9;
-  font-weight: 400;
-  padding-left: 5px;
-  border-left: 1px solid rgba(255, 255, 255, 0.32);
-}
-
-/* Living Canvas Hover Inspect Frame */
-.inspectLayer {
+/* --------------------------------------------------------------------------
+   3. Figma Selection Bounding Boxes (.selBox), Handles & Split-Span Typing
+   -------------------------------------------------------------------------- */
+.selBox {
   position: fixed;
-  inset: 0;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 140ms ease;
+  box-shadow: 0 0 0 1.5px var(--c, #0d99ff);
+  will-change: left, top, width, height, transform;
 }
 
-.inspectVisible {
-  opacity: 1;
+.selBoxType {
+  box-shadow: 0 0 0 1px var(--c, #7b61ff);
 }
 
-.guideH {
+.selHandleTL,
+.selHandleTR,
+.selHandleBL,
+.selHandleBR {
   position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1px dashed rgba(6, 182, 212, 0.38);
-}
-
-.guideV {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 1px dashed rgba(6, 182, 212, 0.38);
-}
-
-.inspectBox {
-  position: absolute;
-  border: 1px solid rgba(6, 182, 212, 0.58);
-  background: rgba(6, 182, 212, 0.025);
-  border-radius: 4px;
-  will-change: left, top, width, height;
-  transition:
-    width 90ms cubic-bezier(0.22, 1, 0.36, 1),
-    height 90ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.cornerTL,
-.cornerTR,
-.cornerBL,
-.cornerBR {
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  background: var(--page-background, #0b0f14);
-  border: 1.5px solid #06b6d4;
-  border-radius: 1px;
-}
-
-.cornerTL {
-  top: -3.5px;
-  left: -3.5px;
-}
-
-.cornerTR {
-  top: -3.5px;
-  right: -3.5px;
-}
-
-.cornerBL {
-  bottom: -3.5px;
-  left: -3.5px;
-}
-
-.cornerBR {
-  bottom: -3.5px;
-  right: -3.5px;
-}
-
-.inspectBadge {
-  position: absolute;
-  left: -1px;
-  top: -22px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: #0891b2;
-  color: #ffffff;
-  font-family: var(--font-code), monospace;
-  font-size: 11px;
-  line-height: 15px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
-}
-
-.inspectBadgeBelow {
-  top: auto;
-  bottom: -23px;
-  left: -1px;
-}
-
-.inspectBadgeInside {
-  top: 6px;
-  bottom: auto;
-  left: 6px;
-}
-
-/* Active Swarm Construction Wireframes */
-.wireLayer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-}
-
-.wireBox {
-  position: fixed;
-  border: 1.5px solid var(--wire-color, #06b6d4);
-  background: color-mix(in srgb, var(--wire-color, #06b6d4) 10%, transparent);
-  border-radius: 4px;
-  pointer-events: none;
-}
-
-.wireCornerTL,
-.wireCornerTR,
-.wireCornerBL,
-.wireCornerBR {
-  position: absolute;
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   background: #ffffff;
-  border: 1.5px solid var(--wire-color, #06b6d4);
+  border: 1.5px solid var(--c, #0d99ff);
   border-radius: 1px;
 }
 
-.wireCornerTL {
-  top: -3px;
-  left: -3px;
-}
-
-.wireCornerTR {
-  top: -3px;
-  right: -3px;
-}
-
-.wireCornerBL {
-  bottom: -3px;
-  left: -3px;
-}
-
-.wireCornerBR {
-  bottom: -3px;
-  right: -3px;
-}
-
-.wireDashed {
-  border-style: dashed;
-  border-width: 1.5px;
-}
-
-.wireSizeBadge {
-  position: absolute;
-  right: -1px;
-  bottom: -22px;
-  padding: 1.5px 6px;
-  border-radius: 4px;
-  background: var(--wire-color, #06b6d4);
-  color: #ffffff;
-  font-family: var(--font-code), monospace;
-  font-size: 11px;
-  line-height: 15px;
-  font-weight: 600;
-  white-space: nowrap;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
-}
-
-.alignGuideV {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 1px dashed var(--wire-color, #ec4899);
-  opacity: 0.55;
-  pointer-events: none;
-}
-
-.alignGuideH {
-  position: fixed;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 1px dashed var(--wire-color, #ec4899);
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-/* Figma Smart Spacing Line & Red Gap Pill */
-.gapLineV {
-  position: fixed;
-  z-index: 2;
-  width: 1.5px;
-  background: #ef4444;
-  transform: translateX(-50%);
-  pointer-events: none;
-  transition: opacity 320ms ease;
-}
-
-.gapLineV::before,
-.gapLineV::after {
-  content: "";
-  position: absolute;
-  left: -4px;
-  width: 9.5px;
-  height: 1.5px;
-  background: #ef4444;
-}
-
-.gapLineV::before {
-  top: 0;
-}
-
-.gapLineV::after {
-  bottom: 0;
-}
-
-.gapLineH {
-  position: fixed;
-  z-index: 2;
-  height: 1.5px;
-  background: #ef4444;
-  transform: translateY(-50%);
-  pointer-events: none;
-  transition: opacity 320ms ease;
-}
-
-.gapLineH::before,
-.gapLineH::after {
-  content: "";
-  position: absolute;
+.selHandleTL {
   top: -4px;
-  width: 1.5px;
-  height: 9.5px;
-  background: #ef4444;
+  left: -4px;
 }
 
-.gapLineH::before {
-  left: 0;
+.selHandleTR {
+  top: -4px;
+  right: -4px;
 }
 
-.gapLineH::after {
-  right: 0;
+.selHandleBL {
+  bottom: -4px;
+  left: -4px;
 }
 
-.gapPill {
-  position: fixed;
-  z-index: 3;
-  transform: translate(-50%, -50%);
-  padding: 1.5px 7px;
-  border-radius: 999px;
-  background: #ef4444;
-  color: #ffffff;
+.selHandleBR {
+  bottom: -4px;
+  right: -4px;
+}
+
+.selBadge {
+  position: absolute;
+  left: 50%;
+  bottom: -24px;
+  transform: translateX(-50%);
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--c, #f85023);
+  color: var(--ink, #ffffff);
   font-family: var(--font-code), monospace;
-  font-size: 11px;
-  line-height: 15px;
+  font-size: 10.5px;
   font-weight: 600;
+  line-height: 1.3;
   white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.42);
-  transition: opacity 320ms ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
-/* Cursor Click Ripple */
-.clickRipple {
-  position: fixed;
-  width: 24px;
-  height: 24px;
-  margin-left: -12px;
-  margin-top: -12px;
-  border-radius: 999px;
-  border: 2px solid var(--ripple-color, #06b6d4);
-  pointer-events: none;
-  animation: swarmRipple 420ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes swarmRipple {
-  0% {
-    transform: scale(0.22);
-    opacity: 0.92;
-  }
-  100% {
-    transform: scale(1.55);
-    opacity: 0;
-  }
-}
-
-/* React-safe Typewriter Overlay Ghost */
-.typewriterGhost {
+/* Split-span layout-preserving text ghost */
+.typeGhost {
   position: fixed;
   pointer-events: none;
   margin: 0;
@@ -400,254 +360,335 @@
   word-break: break-word;
 }
 
-.typingCaret {
+.typeCaret {
   display: inline-block;
-  width: 2.5px;
-  height: 0.92em;
-  margin-left: 2px;
-  vertical-align: -0.08em;
-  border-radius: 1px;
-  animation: caretBlink 520ms steps(2, start) infinite;
+  width: 2px;
+  height: 0.96em;
+  vertical-align: -0.1em;
+  margin-right: -2px;
+  background: var(--c, #7b61ff);
+  animation: stCaretBlink 950ms steps(1) infinite;
 }
 
-@keyframes caretBlink {
+@keyframes stCaretBlink {
   0%,
-  49% {
+  52% {
     opacity: 1;
   }
-  50%,
+  53%,
   100% {
     opacity: 0;
   }
 }
 
-/* Multiplayer Swarm Cursors */
-.cursorLayer {
+/* --------------------------------------------------------------------------
+   4. Completion Micro-Celebrations: Pulse Frame & 4-Point Star Particles
+   -------------------------------------------------------------------------- */
+.pulseOutline {
   position: fixed;
-  inset: 0;
   pointer-events: none;
-  transition: opacity 220ms ease;
+  border-radius: 8px;
+  border: 1.5px solid var(--c, #0d99ff);
+  animation: stFramePulse 680ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.cursorNode {
-  position: fixed;
-  top: 0;
-  left: 0;
-  will-change: transform, opacity;
-  pointer-events: none;
-  transition: opacity 260ms ease;
-}
-
-.cursorAmbient {
-  opacity: 0.8;
-}
-
-.cursorSvg {
-  display: block;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.32));
-  transform-origin: 2px 2px;
-  transition: transform 140ms ease;
-}
-
-.cursorPressing .cursorSvg {
-  transform: scale(0.88);
-}
-
-.cursorTag {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: 12px;
-  margin-top: -2px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  color: #ffffff;
-  font-family: var(--font-code), monospace;
-  font-size: 11px;
-  line-height: 15px;
-  font-weight: 600;
-  white-space: nowrap;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
-}
-
-.cursorTask {
-  opacity: 0.88;
-  font-weight: 400;
-  padding-left: 5px;
-  border-left: 1px solid rgba(255, 255, 255, 0.35);
-}
-
-/* Floating Swarm Control HUD Dock */
-.hudDock {
-  position: fixed;
-  left: 50%;
-  bottom: 24px;
-  transform: translateX(-50%);
-  z-index: 9995;
-  pointer-events: auto;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: var(--page-background, rgba(16, 18, 22, 0.92));
-  border: 1px solid var(--neutral-alpha-medium, rgba(128, 128, 128, 0.28));
-  box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(6, 182, 212, 0.18);
-  backdrop-filter: blur(12px);
-  font-family: var(--font-body), sans-serif;
-  font-size: 12px;
-  color: var(--neutral-on-background-strong, inherit);
-  animation: hudSlideUp 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.hudProgressTrack {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 0;
-  height: 2px;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.hudProgressBar {
-  height: 100%;
-  background: linear-gradient(90deg, #06b6d4, #3b82f6, #10b981);
-  border-radius: 999px;
-  transition: width 260ms ease;
-}
-
-@keyframes hudSlideUp {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 12px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(1);
-  }
-}
-
-.hudStatusGroup {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 6px;
-}
-
-.hudDot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #06b6d4;
-  box-shadow: 0 0 8px #06b6d4;
-  animation: pulseDot 1.2s ease-in-out infinite;
-}
-
-.hudDotDone {
-  background: #10b981;
-  box-shadow: 0 0 8px #10b981;
-  animation: none;
-}
-
-@keyframes pulseDot {
-  0%,
-  100% {
+@keyframes stFramePulse {
+  0% {
+    opacity: 0.72;
     transform: scale(1);
-    opacity: 1;
   }
-  50% {
-    transform: scale(1.35);
-    opacity: 0.65;
+  100% {
+    opacity: 0;
+    transform: scale(1.045);
   }
 }
 
-.hudLabel {
-  font-family: var(--font-code), monospace;
-  font-size: 11.5px;
-  white-space: nowrap;
-  max-width: 190px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.hudDivider {
-  width: 1px;
-  height: 16px;
-  background: var(--neutral-alpha-medium, rgba(128, 128, 128, 0.25));
-  margin: 0 2px;
-}
-
-.hudBtn {
-  appearance: none;
-  border: 1px solid transparent;
-  background: transparent;
-  color: inherit;
-  font-family: var(--font-code), monospace;
-  font-size: 11.5px;
-  font-weight: 500;
-  padding: 3px 8px;
+.spark {
+  position: fixed;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  margin-top: -3px;
   border-radius: 999px;
+  background: var(--c, #f85023);
+  pointer-events: none;
+  animation: stSparkBurst 620ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.sparkStar {
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  margin-top: -4.5px;
+  border-radius: 0;
+  clip-path: polygon(
+    50% 0%,
+    63% 37%,
+    100% 50%,
+    63% 63%,
+    50% 100%,
+    37% 63%,
+    0% 50%,
+    37% 37%
+  );
+}
+
+@keyframes stSparkBurst {
+  0% {
+    opacity: 0.95;
+    transform: translate3d(0, 0, 0) scale(0.4) rotate(0deg);
+  }
+  65% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--dx, 20px), var(--dy, -20px), 0) scale(1.05) rotate(75deg);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. Minimalist 2-Corner Floating HUD (.musicBtn & .autoScrollPill)
+   -------------------------------------------------------------------------- */
+.musicBtn {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 9994;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #18181b;
+  color: #ffffff;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  white-space: nowrap;
+  justify-content: center;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
   transition:
-    background 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease;
+    transform 150ms ease,
+    background 150ms ease;
 }
 
-.hudBtn:hover {
-  background: var(--neutral-alpha-weak, rgba(128, 128, 128, 0.14));
+.musicBtn:hover {
+  transform: scale(1.05);
 }
 
-.hudBtnActive {
-  background: rgba(6, 182, 212, 0.14);
-  border-color: rgba(6, 182, 212, 0.45);
-  color: #06b6d4;
+.eqBars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 14px;
 }
 
-:global(html[data-theme="light"]) .hudBtnActive {
-  background: rgba(8, 145, 178, 0.12);
-  border-color: rgba(8, 145, 178, 0.45);
-  color: #0e7490;
+.eqBar {
+  width: 2.5px;
+  height: 5px;
+  border-radius: 2px;
+  background: #ffffff;
+  transition: height 180ms ease;
 }
 
-:global(html[data-theme="light"]) .hudDock {
-  box-shadow:
-    0 10px 28px rgba(15, 23, 42, 0.14),
-    0 0 0 1px rgba(8, 145, 178, 0.22);
+.musicPlaying .eqBar:nth-child(1) {
+  animation: eqBounce 820ms ease-in-out infinite;
+}
+.musicPlaying .eqBar:nth-child(2) {
+  animation: eqBounce 640ms ease-in-out 120ms infinite;
+}
+.musicPlaying .eqBar:nth-child(3) {
+  animation: eqBounce 760ms ease-in-out 240ms infinite;
+}
+.musicPlaying .eqBar:nth-child(4) {
+  animation: eqBounce 580ms ease-in-out 60ms infinite;
 }
 
-.hudBtnPrimary {
-  background: #06b6d4;
+@keyframes eqBounce {
+  0%,
+  100% {
+    height: 4px;
+  }
+  50% {
+    height: 14px;
+  }
+}
+
+.musicMuted::after {
+  content: "";
+  position: absolute;
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: #f85023;
+  transform: rotate(-42deg);
+}
+
+.autoScrollPill {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9994;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #18181b;
   color: #ffffff;
+  cursor: pointer;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 13px;
   font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  transition:
+    background 200ms ease,
+    transform 150ms ease,
+    box-shadow 200ms ease;
 }
 
-.hudBtnPrimary:hover {
-  background: #0891b2;
+.autoScrollPill:hover {
+  transform: translateY(-1px);
 }
 
-/* Mobile adaptation: Once UI Header sits at bottom on <= 768px, so lift HUD cleanly above it */
+.autoScrollPlaying {
+  background: #f85023;
+  border-color: rgba(255, 255, 255, 0.24);
+  box-shadow: 0 10px 26px rgba(248, 80, 35, 0.36);
+}
+
+.autoScrollProgress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.autoScrollProgressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: #ffffff;
+  transition: width 140ms linear;
+}
+
+:not(.autoScrollPlaying) .autoScrollProgressFill {
+  background: #f85023;
+}
+
+/* --------------------------------------------------------------------------
+   6. Finale Section ("That's a wrap / Thanks for scrolling.")
+   -------------------------------------------------------------------------- */
+.finaleSection {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 120px 20px 156px;
+}
+
+.finaleCard {
+  max-width: 620px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.finaleEyebrow {
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #f85023;
+}
+
+.finaleTitle {
+  margin: 0 0 12px;
+  font-family: var(--font-heading), sans-serif;
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 800;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  color: var(--neutral-on-background-strong, inherit);
+}
+
+.finaleActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.finaleBtnSecondary,
+.finaleBtnPrimary {
+  appearance: none;
+  cursor: pointer;
+  height: 46px;
+  padding: 0 22px;
+  border-radius: 12px;
+  font-family: var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition:
+    transform 150ms ease,
+    opacity 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.finaleBtnSecondary {
+  border: 1px solid var(--neutral-alpha-medium, rgba(148, 163, 184, 0.28));
+  background: #18181b;
+  color: #ffffff;
+}
+
+:global(html[data-theme="dark"]) .finaleBtnSecondary {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.finaleBtnPrimary {
+  border: none;
+  background: #f85023;
+  color: #ffffff;
+  box-shadow: 0 8px 22px rgba(248, 80, 35, 0.32);
+}
+
+.finaleBtnSecondary:hover,
+.finaleBtnPrimary:hover {
+  transform: translateY(-1px);
+}
+
+/* Mobile adaptation: lift floating corner buttons cleanly above Once UI mobile bottom navbar */
 @media (max-width: 768px) {
-  .hudDock {
+  .musicBtn {
+    left: 14px;
     bottom: 84px;
-    max-width: calc(100vw - 24px);
-    padding: 5px 8px;
-    gap: 4px;
+    width: 40px;
+    height: 40px;
   }
 
-  .hudLabel {
-    max-width: 115px;
+  .autoScrollPill {
+    right: 14px;
+    bottom: 84px;
+    height: 40px;
+    padding: 0 14px;
+    font-size: 12px;
   }
 
-  .hideMobile {
-    display: none;
+  .finaleSection {
+    padding: 72px 16px 96px;
   }
 }

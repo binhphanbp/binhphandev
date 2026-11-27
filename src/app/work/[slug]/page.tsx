@@ -99,14 +99,7 @@ export default async function Project({
         <Text variant="body-default-xs" onBackground="neutral-weak" marginBottom="12">
           {post.metadata.publishedAt && formatDate(post.metadata.publishedAt)}
         </Text>
-        <div
-          data-swarm-hero="true"
-          data-swarm-target="case-study-title"
-          data-swarm-kind="typewriter"
-          data-swarm-inspect="true"
-          data-swarm-label="CaseStudy · Title"
-          style={{ width: "100%", textAlign: "center" }}
-        >
+        <div data-swarm-piece="type" style={{ width: "100%", textAlign: "center" }}>
           <Heading variant="display-strong-m">{post.metadata.title}</Heading>
         </div>
       </Column>
@@ -128,13 +121,7 @@ export default async function Project({
         </Row>
       </Row>
       {post.metadata.images.length > 0 && (
-        <div
-          data-swarm-hero="true"
-          data-swarm-target="case-study-cover"
-          data-swarm-inspect="true"
-          data-swarm-label="CaseStudy · CoverMedia"
-          style={{ width: "100%" }}
-        >
+        <div data-swarm-piece="drag" style={{ width: "100%" }}>
           <Media
             priority
             aspectRatio="16 / 9"

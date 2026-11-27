@@ -8,10 +8,8 @@ export const Footer = () => {
   return (
     <Row as="footer" fillWidth padding="8" horizontal="center" s={{ direction: "column" }}>
       <div
-        data-swarm-target="footer"
-        data-swarm-inspect="true"
-        data-swarm-label="Footer.tsx"
-        style={{ width: "100%", display: "flex", justifyContent: "center" }}
+        data-swarm-piece="draw"
+        style={{ width: "100%", display: "flex", justifyContent: "center", paddingBottom: "44px" }}
       >
         <Row
           className={styles.mobile}

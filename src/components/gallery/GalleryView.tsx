@@ -1,20 +1,13 @@
 "use client";
 
-import { Media, MasonryGrid } from "@once-ui-system/core";
+import { MasonryGrid, Media } from "@once-ui-system/core";
 import { gallery } from "@/resources";
 
 export default function GalleryView() {
   return (
     <MasonryGrid columns={2} s={{ columns: 1 }}>
       {gallery.images.map((image, index) => (
-        <div
-          key={index}
-          data-swarm-target="gallery-photo"
-          data-swarm-group="gallery-photos"
-          data-swarm-inspect="true"
-          data-swarm-label={`Gallery · Photo ${String(index + 1).padStart(2, "0")}`}
-          style={{ width: "100%" }}
-        >
+        <div key={index} data-swarm-piece="drag" style={{ width: "100%" }}>
           <Media
             enlarge
             priority={index < 10}

@@ -1,18 +1,16 @@
 "use client";
 
+import { about, blog, display, gallery, person, routes, work } from "@/resources";
+import { Fade, Flex, Line, Row, ToggleButton } from "@once-ui-system/core";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-
-import { Fade, Flex, Line, Row, ToggleButton } from "@once-ui-system/core";
-
-import { about, blog, display, gallery, person, routes, work } from "@/resources";
 import styles from "./Header.module.scss";
 import { ThemeToggle } from "./ThemeToggle";
 import { useSwarm } from "./swarm";
 
 type TimeDisplayProps = {
   timeZone: string;
-  locale?: string; // Optionally allow locale, defaulting to 'en-GB'
+  locale?: string;
 };
 
 const TimeDisplay: React.FC<TimeDisplayProps> = ({ timeZone, locale = "en-GB" }) => {
@@ -45,8 +43,8 @@ export default TimeDisplay;
 
 export const Header = () => {
   const pathname = usePathname() ?? "";
-  const { isRebuilding, blueprintMode, startFullRebuild, stopAndGoLive, toggleBlueprintMode } =
-    useSwarm();
+  const { mode, replayBuild, viewFinalDesign } = useSwarm();
+  const inBuild = mode === "build";
 
   return (
     <>
@@ -81,7 +79,7 @@ export const Header = () => {
         <Row fillWidth horizontal="center">
           <div
             data-swarm-target="nav-pill"
-            data-swarm-label="Header.tsx · NavPill"
+            data-swarm-piece="draw"
             style={{ display: "inline-flex" }}
           >
             <Row
@@ -178,26 +176,20 @@ export const Header = () => {
                 <Row s={{ hide: true }}>
                   <ToggleButton
                     prefixIcon="sparkles"
-                    label={isRebuilding ? "Live" : "Swarm"}
-                    selected={isRebuilding}
-                    onClick={() => (isRebuilding ? stopAndGoLive() : startFullRebuild())}
-                    aria-label="Run Swarm Rebuild (Alt+Shift+S)"
+                    label={inBuild ? "Final" : "Replay"}
+                    selected={inBuild}
+                    onClick={() => (inBuild ? viewFinalDesign() : replayBuild())}
+                    aria-label={inBuild ? "View final design" : "Replay Swarm build"}
                   />
                 </Row>
                 <Row hide s={{ hide: false }}>
                   <ToggleButton
                     prefixIcon="sparkles"
-                    selected={isRebuilding}
-                    onClick={() => (isRebuilding ? stopAndGoLive() : startFullRebuild())}
-                    aria-label="Run Swarm Rebuild"
+                    selected={inBuild}
+                    onClick={() => (inBuild ? viewFinalDesign() : replayBuild())}
+                    aria-label={inBuild ? "View final design" : "Replay Swarm build"}
                   />
                 </Row>
-                <ToggleButton
-                  prefixIcon="blueprint"
-                  selected={blueprintMode}
-                  onClick={toggleBlueprintMode}
-                  aria-label="Toggle Blueprint Inspect Mode (Alt+Shift+B)"
-                />
                 {display.themeSwitcher && (
                   <>
                     <Line background="neutral-alpha-medium" vert maxHeight="24" />

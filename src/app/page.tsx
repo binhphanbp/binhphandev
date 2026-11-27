@@ -52,54 +52,37 @@ export default function Home() {
               paddingBottom="32"
               paddingLeft="12"
             >
-              <Badge
-                background="brand-alpha-weak"
-                paddingX="12"
-                paddingY="4"
-                onBackground="neutral-strong"
-                textVariant="label-default-s"
-                arrow={false}
-                href={home.featured.href}
-              >
-                <Row paddingY="2">{home.featured.title}</Row>
-              </Badge>
+              <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+                <Badge
+                  background="brand-alpha-weak"
+                  paddingX="12"
+                  paddingY="4"
+                  onBackground="neutral-strong"
+                  textVariant="label-default-s"
+                  arrow={false}
+                  href={home.featured.href}
+                >
+                  <Row paddingY="2">{home.featured.title}</Row>
+                </Badge>
+              </div>
             </RevealFx>
           )}
           <RevealFx translateY="4" fillWidth horizontal="center" paddingBottom="16">
-            <div
-              data-swarm-hero="true"
-              data-swarm-target="hero-heading"
-              data-swarm-kind="typewriter"
-              data-swarm-inspect="true"
-              data-swarm-label="Hero · DisplayHeading"
-              style={{ width: "100%" }}
-            >
+            <div data-swarm-piece="type" style={{ width: "100%" }}>
               <Heading wrap="balance" variant="display-strong-l">
                 {home.headline}
               </Heading>
             </div>
           </RevealFx>
           <RevealFx translateY="8" delay={0.2} fillWidth horizontal="center" paddingBottom="32">
-            <div
-              data-swarm-hero="true"
-              data-swarm-target="hero-subline"
-              data-swarm-inspect="true"
-              data-swarm-label="Hero · Subline"
-              style={{ width: "100%" }}
-            >
+            <div data-swarm-piece="type" style={{ width: "100%" }}>
               <Text wrap="balance" onBackground="neutral-weak" variant="heading-default-xl">
                 {home.subline}
               </Text>
             </div>
           </RevealFx>
           <RevealFx paddingTop="12" delay={0.4} horizontal="center" paddingLeft="12">
-            <div
-              data-swarm-hero="true"
-              data-swarm-target="hero-cta"
-              data-swarm-inspect="true"
-              data-swarm-label="CTA · AboutButton"
-              style={{ display: "inline-flex" }}
-            >
+            <div data-swarm-piece="fill" style={{ display: "inline-flex" }}>
               <Button
                 id="about"
                 data-border="rounded"
@@ -131,20 +114,29 @@ export default function Home() {
       {routes["/blog"] && (
         <Column fillWidth gap="24" marginBottom="l">
           <Row fillWidth paddingRight="64">
-            <Line maxWidth={48} />
+            <div data-swarm-piece="line" style={{ width: "100%" }}>
+              <Line maxWidth={48} />
+            </div>
           </Row>
           <Row fillWidth gap="24" marginTop="40" s={{ direction: "column" }}>
             <Row flex={1} paddingLeft="l" paddingTop="24">
-              <Heading as="h2" variant="display-strong-xs" wrap="balance">
-                Latest from the blog
-              </Heading>
+              <div data-swarm-piece="type" style={{ width: "100%" }}>
+                <Heading as="h2" variant="display-strong-xs" wrap="balance">
+                  Latest from the blog
+                </Heading>
+              </div>
             </Row>
             <Row flex={3} paddingX="20">
               <Posts range={[1, 2]} columns="2" />
             </Row>
           </Row>
           <Row fillWidth paddingLeft="64" horizontal="end">
-            <Line maxWidth={48} />
+            <div
+              data-swarm-piece="line"
+              style={{ width: "100%", display: "flex", justifyContent: "flex-end" }}
+            >
+              <Line maxWidth={48} />
+            </div>
           </Row>
         </Column>
       )}

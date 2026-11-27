@@ -1,8 +1,9 @@
+export { SwarmFinale } from "./SwarmFinale";
 export { SwarmProvider, useSwarm } from "./SwarmProvider";
 export type {
-  SwarmAgent,
+  SwarmAgentSpec,
   SwarmContextValue,
-  SwarmPhase,
-  SwarmSpeed,
-  SwarmTarget,
+  SwarmMode,
+  SwarmSlot,
+  SwarmSlotKind,
 } from "./swarmTypes";
