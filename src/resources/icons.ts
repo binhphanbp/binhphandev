@@ -1,6 +1,7 @@
 import type { IconType } from "react-icons";
 
 import {
+  HiArrowPath,
   HiArrowRight,
   HiArrowTopRightOnSquare,
   HiArrowUpRight,
@@ -55,6 +56,7 @@ import {
 export const iconLibrary: Record<string, IconType> = {
   arrowUpRight: HiArrowUpRight,
   arrowRight: HiArrowRight,
+  refresh: HiArrowPath,
   email: HiEnvelope,
   globe: HiOutlineGlobeAsiaAustralia,
   person: PiUserCircleDuotone,

@@ -1686,7 +1686,9 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               className={`${styles.autoScrollPill} ${autoScrolling ? styles.autoScrollPlaying : ""}`}
               aria-label={autoScrolling ? "Pause auto scroll" : "Start auto scroll"}
             >
-              <span aria-hidden="true">{autoScrolling ? "❚❚" : "▶"}</span>
+              <span className={styles.autoScrollIcon} aria-hidden="true">
+                {autoScrolling ? "❚❚" : "▶"}
+              </span>
               <span>{autoScrolling ? "Pause" : "Auto scroll"}</span>
               <span className={styles.autoScrollProgress} aria-hidden="true">
                 <span className={styles.autoScrollProgressFill} style={{ width: `${pct}%` }} />

@@ -25,7 +25,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   1. Entrance Gate (.gateOverlay)
+   1. Entrance Gate (.gateOverlay) — Native Once UI Surface & Cyan Brand Tokens
    -------------------------------------------------------------------------- */
 .gateOverlay {
   position: fixed;
@@ -35,7 +35,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--page-background, #0a0c10) 82%, transparent);
+  background: color-mix(in srgb, var(--page-background, #0a0c10) 84%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   animation: gateFadeIn 320ms ease both;
@@ -59,41 +59,47 @@
 .gateContent {
   position: relative;
   z-index: 2;
-  max-width: 440px;
+  max-width: 460px;
   width: 100%;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .gateEyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--brand-alpha-weak);
+  border: 1px solid var(--brand-alpha-medium);
   font-family: var(--font-code), monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.24em;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #f85023;
+  color: var(--brand-on-background-weak);
 }
 
 .gateTitle {
   margin: 0;
   font-family: var(--font-heading), sans-serif;
   font-size: clamp(36px, 6vw, 52px);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.08;
-  letter-spacing: -0.03em;
-  color: var(--neutral-on-background-strong, #ffffff);
+  letter-spacing: -0.025em;
+  color: var(--neutral-on-background-strong);
 }
 
 .gateSubtitle {
-  margin: 0 0 10px;
-  max-width: 340px;
+  margin: 0 0 6px;
+  max-width: 360px;
   font-family: var(--font-body), sans-serif;
   font-size: 15px;
   line-height: 1.55;
-  color: var(--neutral-on-background-weak, #94a3b8);
+  color: var(--neutral-on-background-weak);
 }
 
 .gateEnterBtn {
@@ -103,35 +109,30 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  min-width: 156px;
-  height: 52px;
-  padding: 0 28px;
+  min-width: 152px;
+  height: 46px;
+  padding: 0 26px;
   border-radius: 999px;
-  border: 2px solid rgba(248, 80, 35, 0.42);
-  background: #18181b;
-  color: #ffffff;
-  font-family: var(--font-heading), sans-serif;
-  font-size: 15px;
-  font-weight: 700;
+  border: 1px solid var(--neutral-alpha-strong);
+  background: var(--neutral-on-background-strong);
+  color: var(--page-background);
+  font-family: var(--font-label), var(--font-body), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
   box-shadow:
-    0 12px 28px rgba(0, 0, 0, 0.28),
-    0 0 0 4px rgba(248, 80, 35, 0.14);
+    0 10px 28px rgba(0, 0, 0, 0.24),
+    0 0 0 4px var(--brand-alpha-weak);
   transition:
     transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 160ms ease,
-    background 160ms ease;
-}
-
-:global(html[data-theme="dark"]) .gateEnterBtn {
-  background: #ffffff;
-  color: #09090b;
+    opacity 160ms ease;
 }
 
 .gateEnterBtn:hover {
-  transform: translateY(-1px) scale(1.02);
+  transform: translateY(-1px);
   box-shadow:
-    0 16px 34px rgba(0, 0, 0, 0.34),
-    0 0 0 5px rgba(248, 80, 35, 0.24);
+    0 14px 32px rgba(0, 0, 0, 0.3),
+    0 0 0 5px var(--brand-alpha-medium);
 }
 
 .gateEnterBtn:active {
@@ -141,8 +142,8 @@
 .gateSecondaryRow {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin-top: 4px;
+  gap: 14px;
+  margin-top: 2px;
 }
 
 .gateTextBtn {
@@ -151,20 +152,19 @@
   background: transparent;
   cursor: pointer;
   padding: 4px 6px;
-  font-family: var(--font-body), sans-serif;
+  font-family: var(--font-label), var(--font-body), sans-serif;
   font-size: 13px;
   font-weight: 500;
-  color: var(--neutral-on-background-weak, #94a3b8);
+  color: var(--neutral-on-background-weak);
   transition: color 140ms ease;
 }
 
 .gateTextBtn:hover {
-  color: var(--neutral-on-background-strong, #ffffff);
-  text-decoration: underline;
+  color: var(--brand-on-background-weak);
 }
 
 .gateDot {
-  color: var(--neutral-alpha-medium, rgba(148, 163, 184, 0.4));
+  color: var(--neutral-alpha-medium);
   font-size: 12px;
 }
 
@@ -541,31 +541,40 @@
 }
 
 /* --------------------------------------------------------------------------
-   5. Minimalist 2-Corner Floating HUD (.musicBtn & .autoScrollPill)
+   5. Minimalist 2-Corner Floating HUD — Matched to Header Glass & Cyan Brand
    -------------------------------------------------------------------------- */
 .musicBtn {
   position: fixed;
   left: 18px;
   bottom: 18px;
   z-index: 9994;
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: #18181b;
-  color: #ffffff;
+  border: 1px solid var(--neutral-alpha-weak);
+  background: color-mix(in srgb, var(--page-background) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--neutral-on-background-strong);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-l, 0 8px 24px rgba(0, 0, 0, 0.24));
   transition:
     transform 150ms ease,
+    border-color 150ms ease,
     background 150ms ease;
 }
 
 .musicBtn:hover {
-  transform: scale(1.05);
+  transform: translateY(-1px);
+  border-color: var(--neutral-alpha-medium);
+}
+
+.musicPlaying {
+  border-color: var(--brand-alpha-medium);
+  color: var(--brand-on-background-weak);
 }
 
 .eqBars {
@@ -579,7 +588,7 @@
   width: 2.5px;
   height: 5px;
   border-radius: 2px;
-  background: #ffffff;
+  background: currentColor;
   transition: height 180ms ease;
 }
 
@@ -606,13 +615,17 @@
   }
 }
 
+.musicMuted {
+  color: var(--neutral-on-background-weak);
+}
+
 .musicMuted::after {
   content: "";
   position: absolute;
-  width: 22px;
-  height: 2px;
+  width: 20px;
+  height: 1.75px;
   border-radius: 2px;
-  background: #f85023;
+  background: var(--neutral-on-background-medium);
   transform: rotate(-42deg);
 }
 
@@ -621,45 +634,55 @@
   right: 18px;
   bottom: 18px;
   z-index: 9994;
-  height: 44px;
-  padding: 0 18px;
+  height: 42px;
+  padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: #18181b;
-  color: #ffffff;
+  border: 1px solid var(--neutral-alpha-weak);
+  background: color-mix(in srgb, var(--page-background) 85%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--neutral-on-background-strong);
   cursor: pointer;
   overflow: hidden;
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  font-family: var(--font-body), sans-serif;
+  gap: 8px;
+  font-family: var(--font-label), var(--font-body), sans-serif;
   font-size: 13px;
-  font-weight: 600;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  font-weight: 500;
+  box-shadow: var(--shadow-l, 0 8px 24px rgba(0, 0, 0, 0.24));
   transition:
     background 200ms ease,
+    border-color 200ms ease,
     transform 150ms ease,
     box-shadow 200ms ease;
 }
 
 .autoScrollPill:hover {
   transform: translateY(-1px);
+  border-color: var(--neutral-alpha-medium);
 }
 
 .autoScrollPlaying {
-  background: #f85023;
-  border-color: rgba(255, 255, 255, 0.24);
-  box-shadow: 0 10px 26px rgba(248, 80, 35, 0.36);
+  background: color-mix(in srgb, var(--brand-alpha-weak) 75%, var(--page-background));
+  border-color: var(--brand-alpha-medium);
+  color: var(--neutral-on-background-strong);
+}
+
+.autoScrollIcon {
+  color: var(--brand-on-background-weak);
+  font-size: 11px;
+  line-height: 1;
 }
 
 .autoScrollProgress {
   position: absolute;
   left: 12px;
   right: 12px;
-  bottom: 4px;
-  height: 2.5px;
+  bottom: 3.5px;
+  height: 2px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.24);
+  background: var(--neutral-alpha-weak);
   overflow: hidden;
   pointer-events: none;
 }
@@ -667,12 +690,8 @@
 .autoScrollProgressFill {
   height: 100%;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--brand-on-background-weak);
   transition: width 140ms linear;
-}
-
-:not(.autoScrollPlaying) .autoScrollProgressFill {
-  background: #f85023;
 }
 
 /* --------------------------------------------------------------------------
@@ -684,84 +703,7 @@
   width: 100%;
   display: flex;
   justify-content: center;
-  padding: 120px 20px 156px;
-}
-
-.finaleCard {
-  max-width: 620px;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 14px;
-}
-
-.finaleEyebrow {
-  font-family: var(--font-body), sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: #f85023;
-}
-
-.finaleTitle {
-  margin: 0 0 12px;
-  font-family: var(--font-heading), sans-serif;
-  font-size: clamp(32px, 5vw, 48px);
-  font-weight: 800;
-  line-height: 1.12;
-  letter-spacing: -0.03em;
-  color: var(--neutral-on-background-strong, inherit);
-}
-
-.finaleActions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-}
-
-.finaleBtnSecondary,
-.finaleBtnPrimary {
-  appearance: none;
-  cursor: pointer;
-  height: 46px;
-  padding: 0 22px;
-  border-radius: 12px;
-  font-family: var(--font-body), sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition:
-    transform 150ms ease,
-    opacity 150ms ease,
-    box-shadow 150ms ease;
-}
-
-.finaleBtnSecondary {
-  border: 1px solid var(--neutral-alpha-medium, rgba(148, 163, 184, 0.28));
-  background: #18181b;
-  color: #ffffff;
-}
-
-:global(html[data-theme="dark"]) .finaleBtnSecondary {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
-}
-
-.finaleBtnPrimary {
-  border: none;
-  background: #f85023;
-  color: #ffffff;
-  box-shadow: 0 8px 22px rgba(248, 80, 35, 0.32);
-}
-
-.finaleBtnSecondary:hover,
-.finaleBtnPrimary:hover {
-  transform: translateY(-1px);
+  padding: 96px 20px 144px;
 }
 
 /* Mobile adaptation: lift floating corner buttons cleanly above Once UI mobile bottom navbar */
@@ -782,6 +724,6 @@
   }
 
   .finaleSection {
-    padding: 72px 16px 96px;
+    padding: 64px 16px 96px;
   }
 }
