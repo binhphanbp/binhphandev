@@ -42,7 +42,7 @@ export default function Home() {
           image: `${baseURL}${person.avatar}`,
         }}
       />
-      <Column fillWidth horizontal="center" gap="m">
+      <Column fillWidth horizontal="center" gap="m" data-swarm-section="hero">
         <Column maxWidth="s" horizontal="center" align="center">
           {home.featured.display && (
             <RevealFx
@@ -109,10 +109,12 @@ export default function Home() {
         </Column>
       </Column>
       <RevealFx translateY="16" delay={0.6}>
-        <Projects range={[1, 1]} />
+        <div data-swarm-section="featured-project" style={{ width: "100%" }}>
+          <Projects range={[1, 1]} />
+        </div>
       </RevealFx>
       {routes["/blog"] && (
-        <Column fillWidth gap="24" marginBottom="l">
+        <Column fillWidth gap="24" marginBottom="l" data-swarm-section="home-blog">
           <Row fillWidth paddingRight="64">
             <div data-swarm-piece="line" style={{ width: "100%" }}>
               <Line maxWidth={48} />

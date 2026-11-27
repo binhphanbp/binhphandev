@@ -1,6 +1,6 @@
 "use client";
 
-import type { SwarmSectionGroup, SwarmSlot, SwarmSlotKind } from "./swarmTypes";
+import type { SwarmSectionGroup, SwarmSlotKind } from "./swarmTypes";
 
 const IGNORE_SELECTOR = "[data-swarm-ignore], script, style, noscript, svg, path";
 
@@ -8,13 +8,37 @@ function isVisible(el: HTMLElement): boolean {
   const cs = window.getComputedStyle(el);
   if (cs.display === "none" || cs.visibility === "hidden") return false;
   const r = el.getBoundingClientRect();
-  return r.width >= 20 && r.height >= 10;
+  return r.width >= 18 && r.height >= 8;
+}
+
+function classifyWave(el: HTMLElement, kind: SwarmSlotKind): 0 | 1 | 2 {
+  if (el.getAttribute("data-swarm-target") === "nav-pill") return 0;
+  if (el.closest("header")) return 0;
+  if (kind === "draw" || kind === "line" || kind === "drag") return 0;
+
+  if (kind === "type") {
+    const hasPrimaryHeading =
+      el.matches("h1, h2") || el.querySelector("h1, h2, [class*='display-strong']") !== null;
+    return hasPrimaryHeading ? 0 : 1;
+  }
+
+  // Action buttons & CTA links land in wave 2 so copy & media establish first
+  const isActionCta =
+    kind === "fill" ||
+    el.querySelector("a[href], button") !== null ||
+    el.closest("a[href], button") !== null;
+  if (isActionCta) {
+    return 2;
+  }
+
+  return 1;
 }
 
 export function scanGranularSections(): SwarmSectionGroup[] {
   if (typeof document === "undefined") return [];
 
   const vh = window.innerHeight || 800;
+  const vw = window.innerWidth || 1280;
   const scrollY = window.scrollY || 0;
 
   const rawPieces: { el: HTMLElement; kind: SwarmSlotKind }[] = [];
@@ -64,49 +88,65 @@ export function scanGranularSections(): SwarmSectionGroup[] {
     }
   }
 
-  // Sort strictly top-to-bottom, left-to-right in document coordinates
+  // Sort top-to-bottom, left-to-right in document coordinates (keeping header items first)
   const withCoords = rawPieces.map((item) => {
     const r = item.el.getBoundingClientRect();
+    const inHeader = item.el.closest("header") !== null;
+    const sectionOwner = item.el.closest<HTMLElement>("[data-swarm-section]");
     return {
       ...item,
-      docTop: r.top + scrollY,
+      inHeader,
+      sectionOwner,
+      rectW: r.width,
+      rectH: r.height,
+      docTop: inHeader ? Math.max(0, r.top) : r.top + scrollY,
       docLeft: r.left,
     };
   });
 
   withCoords.sort((a, b) => {
-    const isNavA = a.el.getAttribute("data-swarm-target") === "nav-pill";
-    const isNavB = b.el.getAttribute("data-swarm-target") === "nav-pill";
-    if (isNavA && !isNavB) return -1;
-    if (!isNavA && isNavB) return 1;
+    if (a.inHeader && !b.inHeader) return -1;
+    if (!a.inHeader && b.inHeader) return 1;
 
     const dy = a.docTop - b.docTop;
     if (Math.abs(dy) > 26) return dy;
     return a.docLeft - b.docLeft;
   });
 
-  // Cap to 56 granular pieces so even very long pages stay crisp and 60fps
-  const capped = withCoords.slice(0, 56);
+  // Cap to 64 granular pieces so even very long pages stay crisp and 60fps
+  const capped = withCoords.slice(0, 64);
 
-  // Cluster pieces into cohesive visual sections (clusters separated by > 165px vertical gap)
+  // Cluster pieces into cohesive visual sections (honoring [data-swarm-section] & >165px gaps)
   const sections: SwarmSectionGroup[] = [];
+  let lastSectionOwner: HTMLElement | null = null;
   let dragCounter = 0;
 
   for (let i = 0; i < capped.length; i++) {
     const item = capped[i];
-    const isNav = item.el.getAttribute("data-swarm-target") === "nav-pill";
 
     let targetSection = sections[sections.length - 1];
-    if (
-      !targetSection ||
-      (!isNav &&
-        sections.length > 0 &&
-        item.docTop - targetSection.slots[targetSection.slots.length - 1].docTop > 165 &&
-        !(sections.length === 1 && item.docTop < vh * 0.72))
-    ) {
+    const ownerChanged =
+      !item.inHeader &&
+      item.sectionOwner !== null &&
+      lastSectionOwner !== null &&
+      item.sectionOwner !== lastSectionOwner;
+    const enteredExplicitNonHeroSection =
+      !item.inHeader &&
+      sections.length === 1 &&
+      item.sectionOwner !== null &&
+      item.sectionOwner.getAttribute("data-swarm-section") !== "hero" &&
+      lastSectionOwner?.getAttribute("data-swarm-section") === "hero";
+    const gapExceeded =
+      !item.inHeader &&
+      targetSection !== undefined &&
+      item.docTop - targetSection.slots[targetSection.slots.length - 1].docTop > 165 &&
+      !(sections.length === 1 && item.docTop < vh * 0.62 && !enteredExplicitNonHeroSection);
+
+    if (!targetSection || ownerChanged || enteredExplicitNonHeroSection || gapExceeded) {
       const secIdx = sections.length;
-      const anchorTop = isNav ? 0 : item.docTop;
-      const triggerScrollY = secIdx === 0 ? 0 : Math.max(24, anchorTop - vh * 0.72);
+      const anchorTop = item.inHeader ? 0 : item.docTop;
+      // Section 1+ requires scroll progression or clear viewport entry so below-hero cards wait their turn
+      const triggerScrollY = secIdx === 0 ? 0 : Math.max(96, anchorTop - vh * 0.68);
       targetSection = {
         index: secIdx,
         triggerScrollY,
@@ -116,31 +156,46 @@ export function scanGranularSections(): SwarmSectionGroup[] {
       sections.push(targetSection);
     }
 
+    if (!item.inHeader && item.sectionOwner) {
+      lastSectionOwner = item.sectionOwner;
+    }
+
     let textSnapshot: string | undefined;
-    if (item.kind === "type") {
+    const hasMultipleParagraphs = item.el.querySelectorAll("p, ul, li, br").length > 1;
+    if (item.kind === "type" && !hasMultipleParagraphs) {
       const clean = (item.el.textContent || "").replace(/\s+/g, " ").trim();
-      if (clean.length >= 2 && clean.length <= 240) {
+      if (clean.length >= 2 && clean.length <= 260) {
         textSnapshot = clean;
       }
     }
 
-    let dragFrom: { dx: number; dy: number; tiltDeg: number } | undefined;
-    if (item.kind === "drag") {
+    const effectiveKind: SwarmSlotKind = item.kind === "type" && !textSnapshot ? "draw" : item.kind;
+
+    let dragFrom: { dx: number; dy: number; bend: number; tiltDeg: number } | undefined;
+    if (effectiveKind === "drag") {
       const fromLeft = dragCounter % 2 === 0;
+      const isLargeMedia = item.rectW > vw * 0.35 || item.rectH > 180;
+      const travelX = isLargeMedia ? 235 : 135;
       dragCounter += 1;
       dragFrom = {
-        dx: fromLeft ? -115 : 115,
-        dy: 38 + (dragCounter % 3) * 14,
-        tiltDeg: fromLeft ? -5.5 : 5.5,
+        dx: fromLeft ? -travelX : travelX,
+        dy: (dragCounter % 2 === 0 ? -1 : 1) * (32 + (dragCounter % 3) * 14),
+        bend: (fromLeft ? 1 : -1) * 0.18,
+        tiltDeg: (fromLeft ? -1 : 1) * (4.4 + (dragCounter % 3) * 1.4),
       };
     }
+
+    const cs = window.getComputedStyle(item.el);
+    const rightAligned = cs.justifyContent === "flex-end" || item.docLeft > vw * 0.55;
 
     targetSection.slots.push({
       id: `slot-${i}`,
       el: item.el,
-      kind: item.kind === "type" && !textSnapshot ? "draw" : item.kind,
+      kind: effectiveKind,
       sectionIndex: targetSection.index,
       docTop: item.docTop,
+      wave: classifyWave(item.el, effectiveKind),
+      rightAligned,
       textSnapshot,
       dragFrom,
     });

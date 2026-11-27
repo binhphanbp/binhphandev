@@ -74,7 +74,13 @@ export const Header = () => {
         }}
       >
         <Row paddingLeft="12" fillWidth vertical="center" textVariant="body-default-s">
-          {display.location && <Row s={{ hide: true }}>{person.location}</Row>}
+          {display.location && (
+            <Row s={{ hide: true }}>
+              <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+                {person.location}
+              </div>
+            </Row>
+          )}
         </Row>
         <Row fillWidth horizontal="center">
           <div
@@ -209,7 +215,11 @@ export const Header = () => {
             gap="20"
           >
             <Flex s={{ hide: true }}>
-              {display.time && <TimeDisplay timeZone={person.location} />}
+              {display.time && (
+                <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+                  <TimeDisplay timeZone={person.location} />
+                </div>
+              )}
             </Flex>
           </Flex>
         </Flex>

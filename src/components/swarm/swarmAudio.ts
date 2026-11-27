@@ -46,7 +46,7 @@ class SwarmAudioEngine {
       try {
         this.ctx = new AudioCtor();
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        this.masterGain.gain.setValueAtTime(0.0001, Math.max(0, this.ctx.currentTime));
         this.masterGain.connect(this.ctx.destination);
       } catch {
         return null;
@@ -63,21 +63,25 @@ class SwarmAudioEngine {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("bp-swarm-music", "true");
     }
-    const ctx = this.ensureContext();
-    if (!ctx || !this.masterGain) return;
+    try {
+      const ctx = this.ensureContext();
+      if (!ctx || !this.masterGain) return;
 
-    const now = ctx.currentTime;
-    this.masterGain.gain.cancelScheduledValues(now);
-    this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
-    this.masterGain.gain.linearRampToValueAtTime(0.55, now + 1.2);
+      const now = Math.max(0, ctx.currentTime);
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
+      this.masterGain.gain.linearRampToValueAtTime(0.55, now + 1.2);
 
-    if (this.musicTimer === null && typeof window !== "undefined") {
-      this.playWarmChord();
-      this.musicTimer = window.setInterval(() => {
-        if (this.enabled && document.visibilityState === "visible") {
-          this.playWarmChord();
-        }
-      }, 3600);
+      if (this.musicTimer === null && typeof window !== "undefined") {
+        this.playWarmChord();
+        this.musicTimer = window.setInterval(() => {
+          if (this.enabled && document.visibilityState === "visible") {
+            this.playWarmChord();
+          }
+        }, 3600);
+      }
+    } catch {
+      // Never allow browser audio constraints to interrupt UI transitions
     }
   }
 
@@ -90,11 +94,15 @@ class SwarmAudioEngine {
       window.clearInterval(this.musicTimer);
       this.musicTimer = null;
     }
-    if (this.ctx && this.masterGain) {
-      const now = this.ctx.currentTime;
-      this.masterGain.gain.cancelScheduledValues(now);
-      this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
-      this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    try {
+      if (this.ctx && this.masterGain) {
+        const now = Math.max(0, this.ctx.currentTime);
+        this.masterGain.gain.cancelScheduledValues(now);
+        this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
+        this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+      }
+    } catch {
+      // Ignore audio ramp errors on closed/suspended contexts
     }
   }
 
@@ -117,7 +125,10 @@ class SwarmAudioEngine {
 
     for (let i = 0; i < notes.length; i++) {
       const freq = notes[i];
-      const start = ctx.currentTime + i * 0.21 + (Math.random() * 0.03 - 0.015);
+      const start = Math.max(
+        0.015,
+        ctx.currentTime + 0.025 + i * 0.21 + (Math.random() * 0.03 - 0.015),
+      );
       const dur = 3.2;
 
       const oscMain = ctx.createOscillator();
@@ -162,7 +173,7 @@ class SwarmAudioEngine {
     if (nowMs - this.lastKeyAt < 52) return;
     this.lastKeyAt = nowMs;
 
-    const now = this.ctx.currentTime;
+    const now = Math.max(0.005, this.ctx.currentTime);
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = "triangle";
@@ -189,7 +200,7 @@ class SwarmAudioEngine {
     const freq = SPARKLE_NOTES[this.sparkleIndex % SPARKLE_NOTES.length];
     this.sparkleIndex += 1;
 
-    const now = this.ctx.currentTime;
+    const now = Math.max(0.005, this.ctx.currentTime);
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 

@@ -1,3 +1,6 @@
+import TableOfContents from "@/components/about/TableOfContents";
+import styles from "@/components/about/about.module.scss";
+import { about, baseURL, person, social } from "@/resources";
 import {
   Avatar,
   Button,
@@ -6,15 +9,12 @@ import {
   Icon,
   IconButton,
   Media,
+  Meta,
+  Row,
+  Schema,
   Tag,
   Text,
-  Meta,
-  Schema,
-  Row,
 } from "@once-ui-system/core";
-import { baseURL, about, person, social } from "@/resources";
-import TableOfContents from "@/components/about/TableOfContents";
-import styles from "@/components/about/about.module.scss";
 import React from "react";
 
 export async function generateMetadata() {
@@ -104,8 +104,8 @@ export default function About() {
             </div>
             {person.languages && person.languages.length > 0 && (
               <Row wrap gap="8">
-                {person.languages.map((language, index) => (
-                  <div key={index} data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+                {person.languages.map((language) => (
+                  <div key={language} data-swarm-piece="pop" style={{ display: "inline-flex" }}>
                     <Tag size="l">{language}</Tag>
                   </div>
                 ))}
@@ -122,29 +122,31 @@ export default function About() {
             marginBottom="32"
           >
             {about.calendar.display && (
-              <Row
-                fitWidth
-                border="brand-alpha-medium"
-                background="brand-alpha-weak"
-                radius="full"
-                padding="4"
-                gap="8"
-                marginBottom="m"
-                vertical="center"
-                className={styles.blockAlign}
-                style={{
-                  backdropFilter: "blur(var(--static-space-1))",
-                }}
-              >
-                <Icon paddingLeft="12" name="calendar" onBackground="brand-weak" />
-                <Row paddingX="8">Schedule a call</Row>
-                <IconButton
-                  href={about.calendar.link}
-                  data-border="rounded"
-                  variant="secondary"
-                  icon="chevronRight"
-                />
-              </Row>
+              <div data-swarm-piece="pop" style={{ display: "inline-flex" }}>
+                <Row
+                  fitWidth
+                  border="brand-alpha-medium"
+                  background="brand-alpha-weak"
+                  radius="full"
+                  padding="4"
+                  gap="8"
+                  marginBottom="m"
+                  vertical="center"
+                  className={styles.blockAlign}
+                  style={{
+                    backdropFilter: "blur(var(--static-space-1))",
+                  }}
+                >
+                  <Icon paddingLeft="12" name="calendar" onBackground="brand-weak" />
+                  <Row paddingX="8">Schedule a call</Row>
+                  <IconButton
+                    href={about.calendar.link}
+                    data-border="rounded"
+                    variant="secondary"
+                    icon="chevronRight"
+                  />
+                </Row>
+              </div>
             )}
             <div data-swarm-piece="type" style={{ width: "100%" }}>
               <Heading className={styles.textAlign} variant="display-strong-xl">
@@ -253,9 +255,9 @@ export default function About() {
                       </Column>
                       {experience.images && experience.images.length > 0 && (
                         <Row fillWidth paddingTop="m" paddingLeft="40" gap="12" wrap>
-                          {experience.images.map((image, index) => (
+                          {experience.images.map((image) => (
                             <Row
-                              key={index}
+                              key={image.src}
                               border="neutral-medium"
                               radius="m"
                               minWidth={image.width}
@@ -346,9 +348,9 @@ export default function About() {
                       )}
                       {skill.images && skill.images.length > 0 && (
                         <Row fillWidth paddingTop="m" gap="12" wrap>
-                          {skill.images.map((image, index) => (
+                          {skill.images.map((image) => (
                             <Row
-                              key={index}
+                              key={image.src}
                               border="neutral-medium"
                               radius="m"
                               minWidth={image.width}

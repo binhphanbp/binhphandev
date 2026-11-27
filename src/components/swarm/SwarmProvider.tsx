@@ -45,39 +45,49 @@ const FIGMA_ARROW_PATH = "M1.5 1.5v16.2l4.3-4.1 2.9 6.6 3-1.3-2.9-6.5h6z";
 interface AgentRuntime {
   spec: SwarmAgentSpec;
   el: HTMLDivElement;
+  innerEl: HTMLDivElement;
+  crosshairEl: HTMLDivElement;
   labelEl: HTMLDivElement;
   x: number;
   y: number;
+  vx: number;
   fromX: number;
   fromY: number;
-  goalX: number;
-  goalY: number;
-  travelT: number;
-  travelDur: number;
   bendSign: number;
   labelAlpha: number;
   targetLabelAlpha: number;
   busySlotId: string | null;
+  scoutSlotId: string | null;
+  holdTimer: number;
+  pressTimer: number;
+  isHoldingDrag: boolean;
+  isDrawingCrosshair: boolean;
   jobCount: number;
-  parkX: number;
-  parkY: number;
   seedFreqs: [number, number, number, number];
   seedPhases: [number, number, number, number];
 }
 
 interface SlotRuntime {
   slot: SwarmSlot;
-  state: "pending" | "waiting" | "active" | "done";
+  state: "pending" | "waiting" | "approaching" | "active" | "done";
   t: number;
+  approachT: number;
+  approachDur: number;
   delayRemaining: number;
   durationSec: number;
   agentId: number;
+  reservedAgentId: number | null;
+  grabOffsetX: number;
+  grabOffsetY: number;
   selEl: HTMLDivElement | null;
   badgeEl: HTMLDivElement | null;
   ghostEl: HTMLDivElement | null;
   typedSpan: HTMLSpanElement | null;
   untypedSpan: HTMLSpanElement | null;
-  caretSpan: HTMLSpanElement | null;
+  caretBarEl: HTMLDivElement | null;
+  guideVEl: HTMLDivElement | null;
+  guideHEl: HTMLDivElement | null;
+  guideBadgeEl: HTMLDivElement | null;
   lastCharCount: number;
 }
 
@@ -95,6 +105,10 @@ function easeOutBack(t: number): number {
   return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2;
 }
 
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
 function preferredSkillForKind(kind: SwarmSlotKind): SwarmSkill {
   if (kind === "type") return "type";
   if (kind === "drag" || kind === "pop") return "move";
@@ -108,32 +122,130 @@ function isFullscreenModalOpen(): boolean {
   return document.querySelector(".cursor-zoom-out, [aria-modal='true'], [role='dialog']") !== null;
 }
 
+function findTextStyleHost(el: HTMLElement): HTMLElement {
+  return (
+    el.querySelector<HTMLElement>("h1, h2, h3, p, [class*='display'], [class*='heading']") ??
+    (el.firstElementChild as HTMLElement | null) ??
+    el
+  );
+}
+
+// Compute the exact live viewport coordinates where an agent clicks down to begin a slot
+function getSlotStartPoint(sr: SlotRuntime): { x: number; y: number } {
+  const el = sr.slot.el;
+  const r = el.getBoundingClientRect();
+  const kind = sr.slot.kind;
+
+  if (kind === "draw") {
+    return { x: r.left, y: r.top };
+  }
+  if (kind === "drag") {
+    const df = sr.slot.dragFrom ?? { dx: -160, dy: 36, bend: 0.16, tiltDeg: -5 };
+    return {
+      x: r.left + df.dx + sr.grabOffsetX,
+      y: r.top + df.dy + sr.grabOffsetY,
+    };
+  }
+  if (kind === "type") {
+    return {
+      x: r.left + 8,
+      y: r.top + Math.min(24, Math.max(12, r.height * 0.42)),
+    };
+  }
+  if (kind === "line") {
+    return {
+      x: sr.slot.rightAligned ? r.right : r.left,
+      y: r.top + r.height * 0.5,
+    };
+  }
+  return {
+    x: r.left + r.width * 0.48,
+    y: r.top + r.height * 0.52,
+  };
+}
+
+// Measure exact pixel caret position of the N-th character using Range.getClientRects()
+function measureCaretPosition(
+  sr: SlotRuntime,
+  fallbackRect: DOMRect,
+  sharedRange: Range | null,
+): { x: number; top: number; height: number } {
+  const defaultHeight = Math.min(44, Math.max(16, fallbackRect.height * 0.82));
+  if (!sharedRange) {
+    return { x: fallbackRect.left + 2, top: fallbackRect.top + 2, height: defaultHeight };
+  }
+
+  try {
+    const typedNode = sr.typedSpan?.firstChild;
+    if (typedNode && typedNode.nodeType === Node.TEXT_NODE) {
+      const len = typedNode.textContent?.length ?? 0;
+      // Walk back up to 3 chars in case a trailing space sits at a soft wrap boundary
+      for (let idx = len - 1; idx >= Math.max(0, len - 3); idx--) {
+        sharedRange.setStart(typedNode, idx);
+        sharedRange.setEnd(typedNode, idx + 1);
+        const rects = sharedRange.getClientRects();
+        if (rects.length > 0) {
+          const last = rects[rects.length - 1];
+          if (last.height > 0) {
+            return { x: last.right, top: last.top, height: last.height };
+          }
+        }
+      }
+    }
+
+    const untypedNode = sr.untypedSpan?.firstChild;
+    if (untypedNode && untypedNode.nodeType === Node.TEXT_NODE) {
+      const uLen = untypedNode.textContent?.length ?? 0;
+      if (uLen > 0) {
+        sharedRange.setStart(untypedNode, 0);
+        sharedRange.setEnd(untypedNode, 1);
+        const rects = sharedRange.getClientRects();
+        if (rects.length > 0 && rects[0].height > 0) {
+          return { x: rects[0].left, top: rects[0].top, height: rects[0].height };
+        }
+      }
+    }
+  } catch {
+    // Fallback cleanly if DOM text node changed mid-frame
+  }
+
+  return { x: fallbackRect.left + 2, top: fallbackRect.top + 2, height: defaultHeight };
+}
+
 function createSelectionBox(
   layer: HTMLElement,
   agent: SwarmAgentSpec,
   kind: SwarmSlotKind,
 ): { selEl: HTMLDivElement; badgeEl: HTMLDivElement | null } {
+  const cls = [
+    styles.selBox,
+    kind === "draw" ? styles.selBoxDraw : "",
+    kind === "type" ? styles.selBoxType : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   const selEl = document.createElement("div");
-  selEl.className = `${styles.selBox} ${kind === "type" ? styles.selBoxType : ""}`;
+  selEl.className = cls;
   selEl.style.setProperty("--c", agent.color);
   selEl.style.setProperty("--ink", agent.ink);
 
   let badgeEl: HTMLDivElement | null = null;
 
-  if (kind === "draw" || kind === "drag") {
-    for (const cls of [
+  if (kind === "draw" || kind === "drag" || kind === "fill" || kind === "pop") {
+    for (const hCls of [
       styles.selHandleTL,
       styles.selHandleTR,
       styles.selHandleBL,
       styles.selHandleBR,
     ]) {
       const h = document.createElement("span");
-      h.className = cls;
+      h.className = hCls;
       selEl.appendChild(h);
     }
   }
 
-  if (kind === "draw") {
+  if (kind === "draw" || kind === "line") {
     badgeEl = document.createElement("div");
     badgeEl.className = styles.selBadge;
     selEl.appendChild(badgeEl);
@@ -154,21 +266,22 @@ function spawnRing(layer: HTMLElement | null, x: number, y: number, color: strin
   window.setTimeout(() => ring.remove(), 480);
 }
 
-function celebrateSlot(fxLayer: HTMLElement | null, el: HTMLElement, color: string) {
+function celebrateSlot(
+  fxLayer: HTMLElement | null,
+  el: HTMLElement,
+  burstX: number,
+  burstY: number,
+  color: string,
+) {
   const r = el.getBoundingClientRect();
   if (r.bottom < 0 || r.top > window.innerHeight) return;
 
-  // 1. Subtle WAAPI elastic bounce on small/medium items
+  // 1. Subtle WAAPI elastic settle on small/medium items
   if (r.height < 420 && typeof el.animate === "function") {
     try {
       el.animate(
-        [
-          { transform: "scale(1)" },
-          { transform: "scale(1.035)" },
-          { transform: "scale(0.99)" },
-          { transform: "scale(1)" },
-        ],
-        { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+        [{ transform: "scale(1.03)" }, { transform: "scale(0.99)" }, { transform: "scale(1)" }],
+        { duration: 380, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
       );
     } catch {
       // Ignore if element doesn't support WAAPI
@@ -178,19 +291,21 @@ function celebrateSlot(fxLayer: HTMLElement | null, el: HTMLElement, color: stri
   if (!fxLayer) return;
 
   // 2. Expanding frame outline pulse
-  const pulse = document.createElement("div");
-  pulse.className = styles.pulseOutline;
-  pulse.style.left = `${Math.round(r.left)}px`;
-  pulse.style.top = `${Math.round(r.top)}px`;
-  pulse.style.width = `${Math.round(r.width)}px`;
-  pulse.style.height = `${Math.round(r.height)}px`;
-  pulse.style.setProperty("--c", color);
-  fxLayer.appendChild(pulse);
-  window.setTimeout(() => pulse.remove(), 700);
+  if (r.width >= 16 && r.height >= 12) {
+    const pulse = document.createElement("div");
+    pulse.className = styles.pulseOutline;
+    pulse.style.left = `${Math.round(r.left)}px`;
+    pulse.style.top = `${Math.round(r.top)}px`;
+    pulse.style.width = `${Math.round(r.width)}px`;
+    pulse.style.height = `${Math.round(r.height)}px`;
+    pulse.style.setProperty("--c", color);
+    fxLayer.appendChild(pulse);
+    window.setTimeout(() => pulse.remove(), 700);
+  }
 
-  // 3. Radiating 4-point stars & circles burst
-  const originX = Math.round(r.left + Math.min(r.width * 0.78, r.width - 12));
-  const originY = Math.round(r.top + Math.min(r.height * 0.35, 36));
+  // 3. Radiating 4-point stars & circles burst right from the cursor's release point
+  const originX = Math.round(clamp(burstX, 16, window.innerWidth - 16));
+  const originY = Math.round(clamp(burstY, 16, window.innerHeight - 16));
   const count = 7;
 
   for (let i = 0; i < count; i++) {
@@ -211,42 +326,34 @@ function celebrateSlot(fxLayer: HTMLElement | null, el: HTMLElement, color: stri
   }
 }
 
-function moveAgentTo(agent: AgentRuntime, gx: number, gy: number, durSec = 0.42) {
-  const dist = Math.hypot(gx - agent.x, gy - agent.y);
-  if (dist < 18) {
-    agent.goalX = gx;
-    agent.goalY = gy;
-    agent.travelT = 1;
-    return;
-  }
-  agent.fromX = agent.x;
-  agent.fromY = agent.y;
-  agent.goalX = gx;
-  agent.goalY = gy;
-  agent.travelT = 0;
-  agent.travelDur = Math.max(0.18, Math.min(0.68, durSec));
-}
-
-function assignAgentForSlot(agents: AgentRuntime[], slot: SwarmSlot): number {
-  const wanted = preferredSkillForKind(slot.kind);
-  let bestId = 0;
-  let bestScore = Number.POSITIVE_INFINITY;
-
-  for (const ag of agents) {
-    let score = ag.jobCount * 4;
-    if (ag.busySlotId !== null) score += 120;
-    if (ag.spec.skill !== wanted) score += 28;
-    if (score < bestScore) {
-      bestScore = score;
-      bestId = ag.spec.id;
+// Pick a strictly FREE agent (busySlotId === null) so no two active slots ever share a cursor
+function claimFreeAgentForSlot(agents: AgentRuntime[], sr: SlotRuntime): AgentRuntime | null {
+  if (sr.reservedAgentId !== null) {
+    const reserved = agents[sr.reservedAgentId];
+    if (reserved && reserved.busySlotId === null) {
+      return reserved;
     }
   }
 
-  const chosen = agents[bestId];
-  if (chosen) {
-    chosen.jobCount += 1;
+  const wanted = preferredSkillForKind(sr.slot.kind);
+  const startPt = getSlotStartPoint(sr);
+  let best: AgentRuntime | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const ag of agents) {
+    if (ag.busySlotId !== null) continue;
+    // Prefer agents not currently scouting a different slot unless needed
+    const scoutingOtherPenalty = ag.scoutSlotId !== null && ag.scoutSlotId !== sr.slot.id ? 10 : 0;
+    const dist = Math.hypot(startPt.x - ag.x, startPt.y - ag.y);
+    const skillBonus = ag.spec.skill === wanted ? -15 : 0;
+    const score = ag.jobCount * 3.8 + dist * 0.008 + scoutingOtherPenalty + skillBonus;
+    if (score < bestScore) {
+      bestScore = score;
+      best = ag;
+    }
   }
-  return bestId;
+
+  return best;
 }
 
 export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -269,6 +376,12 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const activatedSectionsRef = useRef<Set<number>>(new Set());
   const agentsRef = useRef<AgentRuntime[]>([]);
   const fxBudgetRef = useRef<number>(0);
+  const sharedRangeRef = useRef<Range | null>(null);
+  const userPointerRef = useRef<{ x: number; y: number; active: boolean }>({
+    x: -999,
+    y: -999,
+    active: false,
+  });
 
   // Overlay DOM Refs
   const agentLayerRef = useRef<HTMLDivElement | null>(null);
@@ -314,12 +427,28 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       el.style.opacity = "";
       sr.selEl?.remove();
       sr.ghostEl?.remove();
+      sr.caretBarEl?.remove();
+      sr.guideVEl?.remove();
+      sr.guideHEl?.remove();
+      sr.guideBadgeEl?.remove();
       sr.selEl = null;
       sr.ghostEl = null;
+      sr.caretBarEl = null;
+      sr.guideVEl = null;
+      sr.guideHEl = null;
+      sr.guideBadgeEl = null;
     }
     slotsRef.current = [];
     sectionsRef.current = [];
     activatedSectionsRef.current.clear();
+
+    for (const ag of agentsRef.current) {
+      ag.busySlotId = null;
+      ag.scoutSlotId = null;
+      ag.isHoldingDrag = false;
+      ag.isDrawingCrosshair = false;
+      ag.crosshairEl.classList.remove(styles.agentCrosshairActive);
+    }
 
     if (typeof document !== "undefined") {
       const leftover = document.querySelectorAll<HTMLElement>("[data-swarm-unbuilt]");
@@ -340,6 +469,10 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const layer = agentLayerRef.current;
     if (!layer || typeof window === "undefined") return;
 
+    if (!sharedRangeRef.current && typeof document !== "undefined") {
+      sharedRangeRef.current = document.createRange();
+    }
+
     const vw = window.innerWidth;
     const vh = window.innerHeight;
 
@@ -351,57 +484,65 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         el.style.setProperty("--c", spec.color);
         el.style.setProperty("--ink", spec.ink);
         el.innerHTML = `
-          <svg class="${styles.agentArrow}" viewBox="0 0 18 22" fill="none">
-            <path d="${FIGMA_ARROW_PATH}" fill="${spec.color}" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
-          </svg>
+          <div class="${styles.agentInner}">
+            <div class="${styles.agentCrosshair}"></div>
+            <svg class="${styles.agentArrow}" viewBox="0 0 18 22" fill="none">
+              <path d="${FIGMA_ARROW_PATH}" fill="${spec.color}" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+            </svg>
+          </div>
           <div class="${styles.agentLabel}">${spec.name}</div>
         `;
+        const innerEl = el.querySelector(`.${styles.agentInner}`) as HTMLDivElement;
+        const crosshairEl = el.querySelector(`.${styles.agentCrosshair}`) as HTMLDivElement;
         const labelEl = el.querySelector(`.${styles.agentLabel}`) as HTMLDivElement;
         layer.appendChild(el);
 
-        const onLeft = i % 2 === 0;
-        const slotRow = Math.floor(i / 2);
-        const px = onLeft ? 48 + slotRow * 24 : Math.max(80, vw - 135 - slotRow * 22);
-        const py = 96 + slotRow * Math.max(115, Math.floor((vh - 220) / 3.5));
-
-        el.style.transform = `translate3d(${px}px, ${py}px, 0)`;
+        const hx = Math.round(spec.homeSpot[0] * vw);
+        const hy = Math.round(spec.homeSpot[1] * vh);
+        el.style.transform = `translate3d(${hx}px, ${hy}px, 0)`;
 
         return {
           spec,
           el,
+          innerEl,
+          crosshairEl,
           labelEl,
-          x: px,
-          y: py,
-          fromX: px,
-          fromY: py,
-          goalX: px,
-          goalY: py,
-          travelT: 1,
-          travelDur: 0.42,
+          x: hx,
+          y: hy,
+          vx: 0,
+          fromX: hx,
+          fromY: hy,
           bendSign: i % 2 === 0 ? 1 : -1,
-          labelAlpha: blurred ? 0.85 : 0,
-          targetLabelAlpha: blurred ? 0.85 : 0,
+          labelAlpha: 0.85,
+          targetLabelAlpha: 0.85,
           busySlotId: null,
+          scoutSlotId: null,
+          holdTimer: 0,
+          pressTimer: 0,
+          isHoldingDrag: false,
+          isDrawingCrosshair: false,
           jobCount: 0,
-          parkX: px,
-          parkY: py,
           seedFreqs: [
-            0.38 + ((i * 17) % 10) * 0.05,
-            0.52 + ((i * 23) % 10) * 0.04,
-            0.44 + ((i * 31) % 10) * 0.05,
-            0.61 + ((i * 13) % 10) * 0.04,
+            0.36 + ((i * 17) % 10) * 0.045,
+            0.51 + ((i * 23) % 10) * 0.04,
+            0.42 + ((i * 31) % 10) * 0.045,
+            0.59 + ((i * 13) % 10) * 0.038,
           ],
-          seedPhases: [i * 1.1, i * 2.3, i * 0.7, i * 3.1],
+          seedPhases: [i * 1.15, i * 2.35, i * 0.75, i * 3.05],
         };
       });
     } else {
       for (const ag of agentsRef.current) {
         ag.el.classList.toggle(styles.agentBlurred, blurred);
         ag.busySlotId = null;
+        ag.scoutSlotId = null;
+        ag.holdTimer = 0;
+        ag.pressTimer = 0;
+        ag.isHoldingDrag = false;
+        ag.isDrawingCrosshair = false;
+        ag.crosshairEl.classList.remove(styles.agentCrosshairActive);
         ag.jobCount = 0;
-        if (blurred) {
-          ag.targetLabelAlpha = 0.85;
-        }
+        ag.targetLabelAlpha = 0.85;
       }
     }
   }, []);
@@ -421,7 +562,8 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cleanupBuildArtifacts();
       window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
       scrollAccumRef.current = 0;
-      holdUntilRef.current = 0;
+      // Hold initial viewport at top while Hero builds so H1 never scrolls under the sticky navbar
+      holdUntilRef.current = performance.now() + 2150;
 
       ensureAgentsMounted(false);
 
@@ -430,37 +572,73 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const allSlotRuntimes: SlotRuntime[] = [];
       for (const sec of sections) {
-        for (let sIdx = 0; sIdx < sec.slots.length; sIdx++) {
-          const slot = sec.slots[sIdx];
-          slot.el.setAttribute("data-swarm-unbuilt", "true");
+        const waveCounts: [number, number, number] = [0, 0, 0];
 
-          let durationSec = 0.85;
+        // Pre-compute slot durations per wave so Wave 2 CTAs land right as Wave 1 copy finishes
+        const slotDurs = sec.slots.map((slot) => {
           if (slot.kind === "type") {
             const len = (slot.textSnapshot || "").length;
-            durationSec = Math.min(2.35, Math.max(0.75, len * 0.032));
-          } else if (slot.kind === "drag") {
-            durationSec = 0.96;
-          } else if (slot.kind === "draw") {
-            durationSec = 0.88;
-          } else if (slot.kind === "fill" || slot.kind === "pop") {
-            durationSec = 0.62;
-          } else if (slot.kind === "line") {
-            durationSec = 0.58;
+            return clamp(len * 0.028, 0.72, 2.15);
           }
+          if (slot.kind === "drag") return 0.94;
+          if (slot.kind === "draw") return 0.82;
+          if (slot.kind === "fill" || slot.kind === "pop") return 0.56;
+          return 0.54;
+        });
+
+        let maxWave0Dur = 0;
+        let maxWave1Dur = 0;
+        for (let k = 0; k < sec.slots.length; k++) {
+          if (sec.slots[k].wave === 0) maxWave0Dur = Math.max(maxWave0Dur, slotDurs[k]);
+          if (sec.slots[k].wave === 1) maxWave1Dur = Math.max(maxWave1Dur, slotDurs[k]);
+        }
+
+        const wave1Start = maxWave0Dur > 0 ? clamp(maxWave0Dur * 0.28, 0.2, 0.42) : 0.06;
+        const wave2Start =
+          maxWave1Dur > 0
+            ? Math.max(0.76, wave1Start + maxWave1Dur * 0.78)
+            : Math.max(0.62, maxWave0Dur * 0.72);
+
+        for (let sIdx = 0; sIdx < sec.slots.length; sIdx++) {
+          const slot = sec.slots[sIdx];
+          const r = slot.el.getBoundingClientRect();
+          slot.el.setAttribute("data-swarm-unbuilt", "true");
+
+          const durationSec = slotDurs[sIdx];
+          const w = slot.wave;
+          const wOrder = waveCounts[w];
+          waveCounts[w] += 1;
+          const waveBase = w === 0 ? 0.02 : w === 1 ? wave1Start : wave2Start;
+          const delaySec = waveBase + Math.min(0.65, wOrder * 0.11);
+
+          const grabOffsetX = clamp(
+            r.width * (0.36 + (sIdx % 3) * 0.08),
+            12,
+            Math.max(16, r.width - 14),
+          );
+          const grabOffsetY = clamp(r.height * 0.38, 10, Math.min(84, Math.max(14, r.height - 10)));
 
           allSlotRuntimes.push({
             slot,
             state: "pending",
             t: 0,
-            delayRemaining: Math.min(1.6, sIdx * 0.24),
+            approachT: 0,
+            approachDur: 0.3,
+            delayRemaining: delaySec,
             durationSec,
-            agentId: 0,
+            agentId: -1,
+            reservedAgentId: null,
+            grabOffsetX,
+            grabOffsetY,
             selEl: null,
             badgeEl: null,
             ghostEl: null,
             typedSpan: null,
             untypedSpan: null,
-            caretSpan: null,
+            caretBarEl: null,
+            guideVEl: null,
+            guideHEl: null,
+            guideBadgeEl: null,
             lastCharCount: 0,
           });
         }
@@ -470,37 +648,20 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setBuildProgress(0);
       setIsComplete(allSlotRuntimes.length === 0);
       setMode("build");
-      if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(MODE_SESSION_KEY, "build");
-      }
+      window.sessionStorage.setItem(MODE_SESSION_KEY, "build");
       setAutoScrolling(startAutoScroll);
     },
     [cleanupBuildArtifacts, ensureAgentsMounted],
   );
 
-  // Activate a section's slots when reached
+  // Activate a section's slots into parallel waves when reached
   const activateSection = useCallback((secIndex: number) => {
     if (activatedSectionsRef.current.has(secIndex)) return;
     activatedSectionsRef.current.add(secIndex);
 
-    const vw = window.innerWidth;
-    let localOrder = 0;
-
     for (const sr of slotsRef.current) {
       if (sr.slot.sectionIndex !== secIndex || sr.state !== "pending") continue;
-      sr.agentId = assignAgentForSlot(agentsRef.current, sr.slot);
-      sr.delayRemaining = Math.min(1.5, localOrder * 0.22);
       sr.state = "waiting";
-      localOrder += 1;
-
-      // Update idle parking spots around this newly active section
-      const ag = agentsRef.current[sr.agentId];
-      if (ag) {
-        const onLeft = ag.spec.id % 2 === 0;
-        const lane = Math.floor(ag.spec.id / 2);
-        ag.parkX = onLeft ? Math.max(24, vw * 0.065) : Math.min(vw - 95, vw * 0.915);
-        ag.parkY = Math.max(92, Math.min(window.innerHeight - 100, 125 + lane * 145));
-      }
     }
   }, []);
 
@@ -526,7 +687,6 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const savedMode = window.sessionStorage.getItem(MODE_SESSION_KEY) as SwarmMode | null;
 
     if (!seenGate) {
-      // First visit: show Entrance Gate with softly blurred background cursors
       cleanupBuildArtifacts();
       ensureAgentsMounted(true);
       setMode("gate");
@@ -553,7 +713,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     initializeBuildForCurrentPage,
   ]);
 
-  // Master 60fps Choreography, Slot Primitives, Auto-Scroll & Finale Orbit Loop
+  // Master 60fps Multi-Cursor Physics, Approach-Click-Lock, Smart Guides & Auto-Scroll Loop
   useEffect(() => {
     if (typeof window === "undefined") return;
     let rafId = 0;
@@ -564,7 +724,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const dt = Math.min(0.05, (now - lastNow) / 1000);
       lastNow = now;
       const nowSec = now / 1000;
-      fxBudgetRef.current = 4;
+      fxBudgetRef.current = 5;
 
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -576,17 +736,19 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       const curMode = modeRef.current;
 
-      // --- MODE 1: ENTRANCE GATE (Blurred ambient cursor drift) ---
+      // --- MODE 1: ENTRANCE GATE (Blurred ambient cursor drift around studio canvas) ---
       if (curMode === "gate") {
         for (const ag of agentsRef.current) {
+          const baseX = ag.spec.homeSpot[0] * vw;
+          const baseY = ag.spec.homeSpot[1] * vh;
           const wx =
-            Math.sin(nowSec * ag.seedFreqs[0] + ag.seedPhases[0]) * 38 +
-            Math.cos(nowSec * ag.seedFreqs[1] + ag.seedPhases[1]) * 18;
+            Math.sin(nowSec * ag.seedFreqs[0] + ag.seedPhases[0]) * 42 +
+            Math.cos(nowSec * ag.seedFreqs[1] + ag.seedPhases[1]) * 20;
           const wy =
-            Math.cos(nowSec * ag.seedFreqs[2] + ag.seedPhases[2]) * 32 +
-            Math.sin(nowSec * ag.seedFreqs[3] + ag.seedPhases[3]) * 16;
-          const x = Math.max(24, Math.min(vw - 95, ag.parkX + wx));
-          const y = Math.max(24, Math.min(vh - 60, ag.parkY + wy));
+            Math.cos(nowSec * ag.seedFreqs[2] + ag.seedPhases[2]) * 34 +
+            Math.sin(nowSec * ag.seedFreqs[3] + ag.seedPhases[3]) * 18;
+          const x = clamp(baseX + wx, 24, vw - 95);
+          const y = clamp(baseY + wy, 24, vh - 60);
           ag.el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
           ag.labelEl.style.opacity = "0.85";
         }
@@ -594,29 +756,91 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
 
-      // --- MODE 2: BUILD MODE (Scroll + Time Granular Choreography) ---
+      // --- MODE 2: BUILD MODE (Authentic 8-Agent Collaborative Figma Session) ---
       if (curMode === "build") {
         const scrollY = window.scrollY;
         const sections = sectionsRef.current;
         const allSlots = slotsRef.current;
+        const agents = agentsRef.current;
 
-        // 1. Trigger any section whose scroll threshold has been reached (including near page bottom)
+        // Tick down brief post-click / post-finish timers on agents
+        for (const ag of agents) {
+          if (ag.holdTimer > 0) ag.holdTimer = Math.max(0, ag.holdTimer - dt);
+          if (ag.pressTimer > 0) ag.pressTimer = Math.max(0, ag.pressTimer - dt);
+        }
+
+        // 1. Trigger any section whose scroll threshold has been reached
         const maxScrollNow = Math.max(0, document.documentElement.scrollHeight - vh);
         const nearPageBottom = scrollY >= maxScrollNow - 32;
         if (sections.length > 0) {
           activateSection(0);
+          const sec0Done = !allSlots.some((s) => s.slot.sectionIndex === 0 && s.state !== "done");
           for (let i = 1; i < sections.length; i++) {
             const sec = sections[i];
             if (activatedSectionsRef.current.has(sec.index)) continue;
             const firstSlotEl = sec.slots[0]?.el;
             const liveTop = firstSlotEl ? firstSlotEl.getBoundingClientRect().top : vh;
-            if (nearPageBottom || scrollY >= sec.triggerScrollY || liveTop <= vh * 0.96) {
+
+            // Keep below-hero sections unbuilt while Hero builds at scrollY = 0
+            if (i === 1 && sec.anchorTop < vh * 0.88) {
+              if (sec0Done || scrollY >= 72 || nearPageBottom) {
+                activateSection(sec.index);
+              }
+            } else if (nearPageBottom || scrollY >= sec.triggerScrollY || liveTop <= vh * 0.76) {
               activateSection(sec.index);
             }
           }
         }
 
-        // Check if user scrolled far past an active section -> gently speed up above-viewport slots
+        // 2. Lookahead Scouting: Free agents claim & pre-hover near in-viewport waiting slots only
+        for (const ag of agents) {
+          if (ag.busySlotId !== null) {
+            ag.scoutSlotId = null;
+            continue;
+          }
+          if (ag.scoutSlotId !== null) {
+            const curScout = allSlots.find((s) => s.slot.id === ag.scoutSlotId);
+            const curRect = curScout?.slot.el.getBoundingClientRect();
+            if (
+              !curScout ||
+              curScout.state !== "waiting" ||
+              !curRect ||
+              curRect.top < 54 ||
+              curRect.top > vh - 105
+            ) {
+              if (curScout && curScout.reservedAgentId === ag.spec.id) {
+                curScout.reservedAgentId = null;
+              }
+              ag.scoutSlotId = null;
+            }
+          }
+          if (ag.scoutSlotId === null && ag.holdTimer <= 0) {
+            const wanted = ag.spec.skill;
+            let bestScout: SlotRuntime | null = null;
+            let bestScoutScore = Number.POSITIVE_INFINITY;
+
+            for (const sr of allSlots) {
+              if (sr.state !== "waiting") continue;
+              if (sr.reservedAgentId !== null && sr.reservedAgentId !== ag.spec.id) continue;
+              const r = sr.slot.el.getBoundingClientRect();
+              if (r.top < 54 || r.top > vh - 105) continue;
+
+              const skillMatch = preferredSkillForKind(sr.slot.kind) === wanted ? -18 : 0;
+              const score = sr.delayRemaining * 20 + r.top * 0.04 + skillMatch;
+              if (score < bestScoutScore) {
+                bestScoutScore = score;
+                bestScout = sr;
+              }
+            }
+
+            if (bestScout) {
+              ag.scoutSlotId = bestScout.slot.id;
+              bestScout.reservedAgentId = ag.spec.id;
+            }
+          }
+        }
+
+        // 3. Advance Slot State Machine: waiting -> approaching -> active -> done
         let doneCount = 0;
         let activeInViewportCount = 0;
 
@@ -628,28 +852,78 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (sr.state === "pending") continue;
 
           const rect = sr.slot.el.getBoundingClientRect();
-          const scrolledPast = rect.bottom < 40;
+          const scrolledPast = rect.bottom < 36;
           const speedBoost = scrolledPast ? 2.8 : 1.0;
 
-          if (rect.top < vh * 0.56 && rect.bottom > 60) {
+          if (rect.top < vh * 0.62 && rect.bottom > 56) {
             activeInViewportCount += 1;
           }
 
+          // --- PHASE A: WAITING FOR WAVE STAGGER & FREE AGENT ---
           if (sr.state === "waiting") {
             sr.delayRemaining -= dt * speedBoost;
             if (sr.delayRemaining > 0) continue;
 
-            // Transition waiting -> active
-            sr.state = "active";
-            const ag = agentsRef.current[sr.agentId];
-            if (ag) {
-              ag.busySlotId = sr.slot.id;
-              ag.targetLabelAlpha = 1;
-              moveAgentTo(ag, rect.left + 8, rect.top + 8, 0.36);
-              spawnRing(fxLayerRef.current, rect.left + 12, rect.top + 12, ag.spec.color);
+            const chosen = claimFreeAgentForSlot(agents, sr);
+            if (!chosen) {
+              // All 8 agents are simultaneously busy right now! Wait for the very next free agent
+              sr.delayRemaining = 0.03;
+              continue;
             }
 
-            // Mount selection UI & split-span ghost if needed
+            sr.agentId = chosen.spec.id;
+            sr.reservedAgentId = chosen.spec.id;
+            chosen.busySlotId = sr.slot.id;
+            chosen.scoutSlotId = null;
+            chosen.jobCount += 1;
+            chosen.fromX = chosen.x;
+            chosen.fromY = chosen.y;
+            chosen.targetLabelAlpha = 1;
+
+            const startPt = getSlotStartPoint(sr);
+            const dist = Math.hypot(startPt.x - chosen.x, startPt.y - chosen.y);
+            sr.approachT = 0;
+            sr.approachDur =
+              dist < 34 ? 0.11 : clamp(0.18 + dist / 1650, 0.2, scrolledPast ? 0.22 : 0.4);
+            sr.state = "approaching";
+          }
+
+          // --- PHASE B: CURSOR FLIES TO EXACT START POINT BEFORE ELEMENT BEGINS ---
+          if (sr.state === "approaching") {
+            const ag = agents[sr.agentId];
+            const startPt = getSlotStartPoint(sr);
+
+            sr.approachT = Math.min(1, sr.approachT + (dt * speedBoost) / sr.approachDur);
+            if (ag) {
+              const et = easeInOutCubic(sr.approachT);
+              const gx = clamp(startPt.x, 14, vw - 76);
+              const gy = clamp(startPt.y, 14, vh - 40);
+              const dx = gx - ag.fromX;
+              const dy = gy - ag.fromY;
+              const bend = Math.sin(Math.PI * et) * 0.15 * ag.bendSign;
+              const nextX = ag.fromX + dx * et - dy * bend;
+              const nextY = ag.fromY + dy * et + dx * bend;
+              ag.vx = dt > 0 ? (nextX - ag.x) / dt : 0;
+              ag.x = nextX;
+              ag.y = nextY;
+              ag.targetLabelAlpha = 1;
+              ag.isDrawingCrosshair = sr.slot.kind === "draw" && sr.approachT > 0.55;
+            }
+
+            if (sr.approachT < 1) continue;
+
+            // Cursor has arrived! Click down physically & mount Figma selection UI
+            sr.state = "active";
+            sr.t = 0;
+
+            if (ag) {
+              ag.pressTimer = 0.16;
+              ag.isHoldingDrag =
+                sr.slot.kind === "draw" || sr.slot.kind === "drag" || sr.slot.kind === "line";
+              ag.isDrawingCrosshair = sr.slot.kind === "draw";
+              spawnRing(fxLayerRef.current, ag.x + 2, ag.y + 2, ag.spec.color);
+            }
+
             if (selLayerRef.current && ag) {
               const { selEl, badgeEl } = createSelectionBox(
                 selLayerRef.current,
@@ -659,49 +933,68 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               sr.selEl = selEl;
               sr.badgeEl = badgeEl;
 
+              // Mount Figma Smart Alignment Guides for drag operations
+              if (sr.slot.kind === "drag") {
+                const gV = document.createElement("div");
+                gV.className = styles.smartGuideV;
+                const gH = document.createElement("div");
+                gH.className = styles.smartGuideH;
+                const gB = document.createElement("div");
+                gB.className = styles.smartGuideBadge;
+                selLayerRef.current.appendChild(gV);
+                selLayerRef.current.appendChild(gH);
+                selLayerRef.current.appendChild(gB);
+                sr.guideVEl = gV;
+                sr.guideHEl = gH;
+                sr.guideBadgeEl = gB;
+              }
+
+              // Mount pure-inline split-span text ghost + Range-tracked caret bar
               if (sr.slot.kind === "type" && sr.slot.textSnapshot) {
-                const textHost =
-                  sr.slot.el.querySelector<HTMLElement>(
-                    "h1, h2, h3, p, span, [class*='display'], [class*='heading']",
-                  ) ?? sr.slot.el;
+                const textHost = findTextStyleHost(sr.slot.el);
                 const cs = window.getComputedStyle(textHost);
                 const ghost = document.createElement("div");
                 ghost.className = styles.typeGhost;
                 ghost.style.fontFamily = cs.fontFamily;
                 ghost.style.fontSize = cs.fontSize;
                 ghost.style.fontWeight = cs.fontWeight;
+                ghost.style.fontStyle = cs.fontStyle;
                 ghost.style.lineHeight = cs.lineHeight;
                 ghost.style.letterSpacing = cs.letterSpacing;
+                ghost.style.wordSpacing = cs.wordSpacing;
+                ghost.style.textTransform = cs.textTransform;
                 ghost.style.textAlign = cs.textAlign;
                 ghost.style.color = cs.color;
                 if ("textWrap" in cs) {
                   ghost.style.setProperty("text-wrap", cs.getPropertyValue("text-wrap"));
                 }
 
+                // Pure inline spans ONLY (no inline-block in between!) so word wrapping never shifts
                 const typedSpan = document.createElement("span");
-                const caretSpan = document.createElement("span");
-                caretSpan.className = styles.typeCaret;
-                caretSpan.style.setProperty("--c", ag.spec.color);
                 const untypedSpan = document.createElement("span");
                 untypedSpan.style.color = "transparent";
                 untypedSpan.textContent = sr.slot.textSnapshot;
 
                 ghost.appendChild(typedSpan);
-                ghost.appendChild(caretSpan);
                 ghost.appendChild(untypedSpan);
                 selLayerRef.current.appendChild(ghost);
 
+                const caretBar = document.createElement("div");
+                caretBar.className = styles.typeCaretBar;
+                caretBar.style.setProperty("--c", ag.spec.color);
+                selLayerRef.current.appendChild(caretBar);
+
                 sr.ghostEl = ghost;
                 sr.typedSpan = typedSpan;
-                sr.caretSpan = caretSpan;
                 sr.untypedSpan = untypedSpan;
+                sr.caretBarEl = caretBar;
               }
             }
           }
 
-          // Advance active slot progress (0 -> 1)
+          // --- PHASE C: ACTIVE MANIPULATION (1:1 ZERO-LAG CURSOR LOCK) ---
           sr.t = Math.min(1, sr.t + (dt * speedBoost) / sr.durationSec);
-          const ag = agentsRef.current[sr.agentId];
+          const ag = agents[sr.agentId];
           const el = sr.slot.el;
           const r = el.getBoundingClientRect();
 
@@ -713,8 +1006,8 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const insetB = ((1 - ease) * 100).toFixed(2);
             el.style.clipPath = `inset(0 ${insetR}% ${insetB}% 0)`;
 
-            const curW = Math.max(2, Math.round(r.width * ease));
-            const curH = Math.max(2, Math.round(r.height * ease));
+            const curW = Math.max(8, Math.round(r.width * ease));
+            const curH = Math.max(8, Math.round(r.height * ease));
             if (sr.selEl) {
               sr.selEl.style.left = `${Math.round(r.left)}px`;
               sr.selEl.style.top = `${Math.round(r.top)}px`;
@@ -724,22 +1017,31 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             if (sr.badgeEl) {
               sr.badgeEl.textContent = `${curW} × ${curH}`;
             }
+            // Pin cursor arrow 1:1 onto the bottom-right resize handle it is actively pulling
             if (ag) {
-              ag.goalX = r.left + curW;
-              ag.goalY = r.top + curH;
+              const nextX = clamp(r.left + curW, 12, vw - 76);
+              const nextY = clamp(r.top + curH, 12, vh - 40);
+              ag.vx = dt > 0 ? (nextX - ag.x) / dt : 0;
+              ag.x = nextX;
+              ag.y = nextY;
               ag.targetLabelAlpha = 1;
             }
           } else if (sr.slot.kind === "drag") {
             const ease = easeOutCubic(sr.t);
             const inv = 1 - ease;
-            const df = sr.slot.dragFrom ?? { dx: -110, dy: 40, tiltDeg: -5 };
-            const dx = df.dx * inv;
-            const dy = df.dy * inv;
-            const tilt = df.tiltDeg * Math.sin(Math.PI * sr.t);
-            const lift = 1 + 0.045 * Math.sin(Math.PI * sr.t);
+            const df = sr.slot.dragFrom ?? { dx: -165, dy: 38, bend: 0.16, tiltDeg: -5 };
+            const arc = Math.sin(Math.PI * ease) * df.bend;
+            const dx = df.dx * inv - df.dy * arc;
+            const dy = df.dy * inv + df.dx * arc;
+            const tilt = df.tiltDeg * Math.sin(Math.PI * ease);
+            const lift = 1 + 0.045 * Math.sin(Math.PI * Math.min(1, sr.t * 1.08));
+
+            // Compute resting target rect before transform for Figma Smart Alignment Guides
+            const finalLeft = r.left - dx;
+            const finalTop = r.top - dy;
 
             el.removeAttribute("data-swarm-unbuilt");
-            el.style.opacity = String(Math.min(1, sr.t * 3.2));
+            el.style.opacity = String(Math.min(1, 0.25 + sr.t * 2.6));
             el.style.transform = `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0) rotate(${tilt.toFixed(2)}deg) scale(${lift.toFixed(3)})`;
 
             const liveR = el.getBoundingClientRect();
@@ -750,14 +1052,47 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               sr.selEl.style.height = `${Math.round(liveR.height)}px`;
               sr.selEl.style.transform = `rotate(${tilt.toFixed(2)}deg)`;
             }
+
+            // Show Figma Smart Alignment Guides (#FF3366) as the dragged element snaps into place
+            if (sr.guideVEl && sr.guideHEl && sr.guideBadgeEl) {
+              if (sr.t >= 0.46 && sr.t < 0.995) {
+                const guideAlpha = sr.t > 0.92 ? (1 - sr.t) / 0.08 : (sr.t - 0.46) / 0.2;
+                const op = clamp(guideAlpha, 0, 0.9).toFixed(2);
+                const snapDist = Math.round(Math.hypot(dx, dy));
+
+                sr.guideVEl.style.left = `${Math.round(finalLeft)}px`;
+                sr.guideVEl.style.top = `${Math.round(finalTop - 26)}px`;
+                sr.guideVEl.style.height = `${Math.round(liveR.height + 52)}px`;
+                sr.guideVEl.style.opacity = op;
+
+                sr.guideHEl.style.left = `${Math.round(finalLeft - 26)}px`;
+                sr.guideHEl.style.top = `${Math.round(finalTop)}px`;
+                sr.guideHEl.style.width = `${Math.round(liveR.width + 52)}px`;
+                sr.guideHEl.style.opacity = op;
+
+                sr.guideBadgeEl.style.left = `${Math.round(finalLeft + Math.min(48, liveR.width * 0.25))}px`;
+                sr.guideBadgeEl.style.top = `${Math.max(58, Math.round(finalTop - 12))}px`;
+                sr.guideBadgeEl.textContent = snapDist <= 2 ? "0" : `${snapDist}`;
+                sr.guideBadgeEl.style.opacity = op;
+              } else {
+                sr.guideVEl.style.opacity = "0";
+                sr.guideHEl.style.opacity = "0";
+                sr.guideBadgeEl.style.opacity = "0";
+              }
+            }
+
+            // Pin cursor arrow 1:1 onto the card grab point carrying it into place
             if (ag) {
-              ag.goalX = liveR.left + liveR.width * 0.44;
-              ag.goalY = liveR.top + Math.min(72, liveR.height * 0.38);
+              const nextX = clamp(liveR.left + sr.grabOffsetX, 12, vw - 76);
+              const nextY = clamp(liveR.top + sr.grabOffsetY, 12, vh - 40);
+              ag.vx = dt > 0 ? (nextX - ag.x) / dt : 0;
+              ag.x = nextX;
+              ag.y = nextY;
               ag.targetLabelAlpha = 1;
             }
           } else if (sr.slot.kind === "type" && sr.slot.textSnapshot && sr.ghostEl) {
             const text = sr.slot.textSnapshot;
-            const charCount = Math.min(text.length, Math.max(1, Math.floor(sr.t * text.length)));
+            const charCount = Math.min(text.length, Math.max(1, Math.round(sr.t * text.length)));
             if (charCount !== sr.lastCharCount) {
               sr.lastCharCount = charCount;
               if (sr.typedSpan) sr.typedSpan.textContent = text.slice(0, charCount);
@@ -765,63 +1100,92 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               swarmAudio.playKeyTick();
             }
 
-            const textHost =
-              el.querySelector<HTMLElement>(
-                "h1, h2, h3, p, span, [class*='display'], [class*='heading']",
-              ) ?? el;
-            const tr = textHost.getBoundingClientRect();
+            // Use the full block wrapper rect so balanced inline spans never shrink/overflow
+            const boxR = el.getBoundingClientRect();
 
-            sr.ghostEl.style.left = `${Math.round(tr.left)}px`;
-            sr.ghostEl.style.top = `${Math.round(tr.top)}px`;
-            sr.ghostEl.style.width = `${Math.round(tr.width)}px`;
+            sr.ghostEl.style.left = `${Math.round(boxR.left)}px`;
+            sr.ghostEl.style.top = `${Math.round(boxR.top)}px`;
+            sr.ghostEl.style.width = `${Math.round(boxR.width)}px`;
 
+            const liveGhostH = Math.max(boxR.height, sr.ghostEl.offsetHeight);
             if (sr.selEl) {
-              sr.selEl.style.left = `${Math.round(tr.left - 4)}px`;
-              sr.selEl.style.top = `${Math.round(tr.top - 3)}px`;
-              sr.selEl.style.width = `${Math.round(tr.width + 8)}px`;
-              sr.selEl.style.height = `${Math.round(tr.height + 6)}px`;
+              sr.selEl.style.left = `${Math.round(boxR.left - 5)}px`;
+              sr.selEl.style.top = `${Math.round(boxR.top - 4)}px`;
+              sr.selEl.style.width = `${Math.round(boxR.width + 10)}px`;
+              sr.selEl.style.height = `${Math.round(liveGhostH + 8)}px`;
             }
 
-            if (ag && sr.caretSpan) {
-              const cr = sr.caretSpan.getBoundingClientRect();
-              ag.goalX = cr.left + 2;
-              ag.goalY = cr.bottom - 2;
+            const caretPos = measureCaretPosition(sr, boxR, sharedRangeRef.current);
+            if (sr.caretBarEl) {
+              sr.caretBarEl.style.left = `${Math.round(caretPos.x)}px`;
+              sr.caretBarEl.style.top = `${Math.round(caretPos.top)}px`;
+              sr.caretBarEl.style.height = `${Math.round(caretPos.height)}px`;
+            }
+
+            // Track cursor smoothly right alongside the live character caret
+            if (ag) {
+              const targetX = clamp(caretPos.x + 5, 12, vw - 76);
+              const targetY = clamp(caretPos.top + caretPos.height + 2, 12, vh - 40);
+              const follow = 1 - Math.exp(-26 * dt);
+              const nextX = ag.x + (targetX - ag.x) * follow;
+              const nextY = ag.y + (targetY - ag.y) * follow;
+              ag.vx = dt > 0 ? (nextX - ag.x) / dt : 0;
+              ag.x = nextX;
+              ag.y = nextY;
               ag.targetLabelAlpha = 1;
             }
           } else if (sr.slot.kind === "fill" || sr.slot.kind === "pop") {
-            const scale = easeOutBack(sr.t);
+            const scale = 0.72 + 0.28 * easeOutBack(sr.t);
             el.removeAttribute("data-swarm-unbuilt");
-            el.style.opacity = String(Math.min(1, sr.t * 3.5));
+            el.style.opacity = String(Math.min(1, 0.2 + sr.t * 3.0));
             el.style.transform = `scale(${scale.toFixed(3)})`;
 
+            const liveR = el.getBoundingClientRect();
             if (sr.selEl) {
-              sr.selEl.style.left = `${Math.round(r.left)}px`;
-              sr.selEl.style.top = `${Math.round(r.top)}px`;
-              sr.selEl.style.width = `${Math.round(r.width)}px`;
-              sr.selEl.style.height = `${Math.round(r.height)}px`;
+              sr.selEl.style.left = `${Math.round(liveR.left)}px`;
+              sr.selEl.style.top = `${Math.round(liveR.top)}px`;
+              sr.selEl.style.width = `${Math.round(liveR.width)}px`;
+              sr.selEl.style.height = `${Math.round(liveR.height)}px`;
             }
             if (ag) {
-              ag.goalX = r.left + r.width * 0.55;
-              ag.goalY = r.top + r.height * 0.55;
+              const nextX = clamp(liveR.left + liveR.width * 0.56, 12, vw - 76);
+              const nextY = clamp(liveR.top + liveR.height * 0.58, 12, vh - 40);
+              ag.vx = dt > 0 ? (nextX - ag.x) / dt : 0;
+              ag.x = nextX;
+              ag.y = nextY;
               ag.targetLabelAlpha = 1;
             }
           } else if (sr.slot.kind === "line") {
             const ease = easeInOutCubic(sr.t);
+            const rightAligned = Boolean(sr.slot.rightAligned);
             el.removeAttribute("data-swarm-unbuilt");
             el.style.opacity = "1";
-            el.style.transformOrigin = "left center";
+            el.style.transformOrigin = rightAligned ? "right center" : "left center";
             el.style.transform = `scaleX(${ease.toFixed(3)})`;
+
+            const curLen = Math.max(4, Math.round(r.width * ease));
+            const leftX = rightAligned ? r.right - curLen : r.left;
             if (sr.selEl) {
-              sr.selEl.style.display = "none";
+              sr.selEl.style.left = `${Math.round(leftX)}px`;
+              sr.selEl.style.top = `${Math.round(r.top - 2)}px`;
+              sr.selEl.style.width = `${curLen}px`;
+              sr.selEl.style.height = `${Math.max(4, Math.round(r.height + 4))}px`;
+            }
+            if (sr.badgeEl) {
+              sr.badgeEl.textContent = `${curLen} px`;
             }
             if (ag) {
-              ag.goalX = r.left + r.width * ease;
-              ag.goalY = r.top + r.height * 0.5;
+              const tipX = rightAligned ? r.right - curLen : r.left + curLen;
+              const nextX = clamp(tipX, 12, vw - 76);
+              const nextY = clamp(r.top + r.height * 0.5, 12, vh - 40);
+              ag.vx = dt > 0 ? (nextX - ag.x) / dt : 0;
+              ag.x = nextX;
+              ag.y = nextY;
               ag.targetLabelAlpha = 1;
             }
           }
 
-          // Slot Completed!
+          // --- SLOT COMPLETED! ---
           if (sr.t >= 1) {
             sr.state = "done";
             doneCount += 1;
@@ -834,26 +1198,36 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             sr.selEl?.remove();
             sr.ghostEl?.remove();
+            sr.caretBarEl?.remove();
+            sr.guideVEl?.remove();
+            sr.guideHEl?.remove();
+            sr.guideBadgeEl?.remove();
             sr.selEl = null;
             sr.ghostEl = null;
+            sr.caretBarEl = null;
+            sr.guideVEl = null;
+            sr.guideHEl = null;
+            sr.guideBadgeEl = null;
 
             if (ag) {
               if (ag.busySlotId === sr.slot.id) {
                 ag.busySlotId = null;
               }
+              ag.isHoldingDrag = false;
+              ag.isDrawingCrosshair = false;
+              ag.holdTimer = 0.14;
               if (fxBudgetRef.current > 0) {
                 fxBudgetRef.current -= 1;
-                celebrateSlot(fxLayerRef.current, el, ag.spec.color);
+                celebrateSlot(fxLayerRef.current, el, ag.x, ag.y, ag.spec.color);
                 swarmAudio.playSparklePop();
               }
             }
 
-            // Grant a brief breath after completing a section before gliding further
             const remainingInSec = allSlots.some(
               (other) => other.slot.sectionIndex === sr.slot.sectionIndex && other.state !== "done",
             );
             if (!remainingInSec) {
-              holdUntilRef.current = Math.max(holdUntilRef.current, now + 480);
+              holdUntilRef.current = Math.max(holdUntilRef.current, now + 440);
             }
           }
         }
@@ -872,17 +1246,15 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
 
-        // 2. Smooth 60fps Auto-Scroll Controller (bypasses Once UI CSS scroll-behavior: smooth)
+        // 4. Smooth 60fps Auto-Scroll Controller
         if (autoScrollRef.current && !modalOpen) {
           if (scrollY >= maxScroll - 4 && doneCount >= allSlots.length) {
-            // Reached the very bottom Finale -> stop auto-scroll cleanly
             autoScrollRef.current = false;
             setAutoScrolling(false);
           } else if (now >= holdUntilRef.current) {
-            // Steady browse glide; slow down gently while focal pieces in upper viewport are mid-build
             const scrollSpeed =
-              activeInViewportCount >= 3
-                ? vh * 0.055
+              activeInViewportCount >= 4
+                ? vh * 0.052
                 : activeInViewportCount > 0
                   ? vh * 0.105
                   : vh * 0.185;
@@ -896,7 +1268,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
 
-        // 3. Position All 8 Agents (Active Work / Margin Parking / Finale Orbit Ring)
+        // 5. Render All 8 Agents (Active Lock / Lookahead Scout / Asymmetric Studio Hover / Finale Ring)
         const finaleEl = document.getElementById("swarm-finale-anchor");
         const finaleRect = finaleEl?.getBoundingClientRect();
         const inFinaleRing =
@@ -905,71 +1277,109 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           finaleRect.top < vh * 0.78 &&
           finaleRect.bottom > 120;
 
-        for (let i = 0; i < agentsRef.current.length; i++) {
-          const ag = agentsRef.current[i];
+        for (let i = 0; i < agents.length; i++) {
+          const ag = agents[i];
 
-          // Check if agent still has a live active slot
-          const hasActiveSlot =
-            ag.busySlotId !== null &&
-            allSlots.some((s) => s.slot.id === ag.busySlotId && s.state === "active");
-          if (!hasActiveSlot) {
+          const liveBusySlot =
+            ag.busySlotId !== null
+              ? allSlots.find(
+                  (s) =>
+                    s.slot.id === ag.busySlotId &&
+                    (s.state === "approaching" || s.state === "active"),
+                )
+              : undefined;
+
+          if (!liveBusySlot) {
             ag.busySlotId = null;
+            ag.isHoldingDrag = false;
+            ag.isDrawingCrosshair = false;
           }
 
-          let targetX = ag.goalX;
-          let targetY = ag.goalY;
-          let wanderAmp = 0;
+          // Free agents (not actively approaching or manipulating a slot) move organically
+          if (!liveBusySlot) {
+            let targetX = ag.spec.homeSpot[0] * vw;
+            let targetY = ag.spec.homeSpot[1] * vh;
+            let wanderAmp = 24;
+            let smoothing = 4.6;
 
-          if (inFinaleRing && finaleRect) {
-            // Clockwise elliptical Finale Ring framing "Thanks for scrolling." & buttons cleanly
-            const cx = finaleRect.left + finaleRect.width * 0.5;
-            const cy = finaleRect.top + finaleRect.height * 0.44;
-            const rx = Math.min(355, Math.max(250, vw * 0.36));
-            const ry = Math.min(156, Math.max(128, finaleRect.height * 0.42));
-            const angle = nowSec * 0.52 + (i * Math.PI * 2) / agentsRef.current.length;
+            if (inFinaleRing && finaleRect) {
+              // Clockwise elliptical Finale Ring framing "Thanks for scrolling." & buttons cleanly
+              const cx = finaleRect.left + finaleRect.width * 0.5;
+              const cy = finaleRect.top + finaleRect.height * 0.44;
+              const rx = Math.min(355, Math.max(250, vw * 0.36));
+              const ry = Math.min(156, Math.max(128, finaleRect.height * 0.42));
+              const angle = nowSec * 0.52 + (i * Math.PI * 2) / agents.length;
 
-            targetX = cx + Math.cos(angle) * rx;
-            targetY = cy + Math.sin(angle) * ry;
-            wanderAmp = 2.5;
-            ag.targetLabelAlpha = 1;
-          } else if (!hasActiveSlot) {
-            // Idle margin parking with faded name pill
-            targetX = ag.parkX;
-            targetY = ag.parkY;
-            wanderAmp = 4.5;
-            ag.targetLabelAlpha = 0;
+              targetX = cx + Math.cos(angle) * rx;
+              targetY = cy + Math.sin(angle) * ry;
+              wanderAmp = 2.5;
+              smoothing = 6.5;
+              ag.targetLabelAlpha = 1;
+            } else if (ag.holdTimer > 0) {
+              // Natural 140ms human pause right where the mouse button was just released
+              targetX = ag.x;
+              targetY = ag.y;
+              wanderAmp = 1.5;
+              smoothing = 12;
+              ag.targetLabelAlpha = 0.95;
+            } else if (ag.scoutSlotId !== null) {
+              // Lookahead Scout: hover thoughtfully near the upcoming element before clicking in
+              const scoutSr = allSlots.find((s) => s.slot.id === ag.scoutSlotId);
+              if (scoutSr) {
+                const pt = getSlotStartPoint(scoutSr);
+                targetX = pt.x + (i % 2 === 0 ? -18 : 18);
+                targetY = pt.y - 14;
+                wanderAmp = 9;
+                smoothing = 6.8;
+                ag.targetLabelAlpha = 0.9;
+              }
+            } else {
+              // Asymmetric studio canvas hover with visible collaborator name pill
+              ag.targetLabelAlpha = 0.68;
+            }
+
+            if (wanderAmp > 0) {
+              targetX +=
+                Math.sin(nowSec * ag.seedFreqs[0] + ag.seedPhases[0]) * wanderAmp +
+                Math.cos(nowSec * ag.seedFreqs[1] + ag.seedPhases[1]) * (wanderAmp * 0.48);
+              targetY +=
+                Math.cos(nowSec * ag.seedFreqs[2] + ag.seedPhases[2]) * (wanderAmp * 0.85) +
+                Math.sin(nowSec * ag.seedFreqs[3] + ag.seedPhases[3]) * (wanderAmp * 0.45);
+            }
+
+            // Polite awareness: gently yield aside if the user's "You" cursor hovers right over an idle agent
+            if (!inFinaleRing && userPointerRef.current.active) {
+              const ux = userPointerRef.current.x;
+              const uy = userPointerRef.current.y;
+              const dxU = targetX - ux;
+              const dyU = targetY - uy;
+              const distU = Math.hypot(dxU, dyU);
+              if (distU > 1 && distU < 88) {
+                const push = ((88 - distU) / 88) * 34;
+                targetX += (dxU / distU) * push;
+                targetY += (dyU / distU) * push;
+              }
+            }
+
+            targetX = clamp(targetX, 16, vw - 82);
+            targetY = clamp(targetY, 16, vh - 46);
+
+            const follow = 1 - Math.exp(-smoothing * dt);
+            const nextX = ag.x + (targetX - ag.x) * follow;
+            const nextY = ag.y + (targetY - ag.y) * follow;
+            ag.vx = dt > 0 ? (nextX - ag.x) / dt : 0;
+            ag.x = nextX;
+            ag.y = nextY;
           }
 
-          // Organic 4-sine idle wander
-          if (wanderAmp > 0) {
-            targetX +=
-              Math.sin(nowSec * ag.seedFreqs[0] + ag.seedPhases[0]) * wanderAmp +
-              Math.cos(nowSec * ag.seedFreqs[1] + ag.seedPhases[1]) * (wanderAmp * 0.5);
-            targetY +=
-              Math.cos(nowSec * ag.seedFreqs[2] + ag.seedPhases[2]) * wanderAmp +
-              Math.sin(nowSec * ag.seedFreqs[3] + ag.seedPhases[3]) * (wanderAmp * 0.5);
-          }
+          // Physical arrow scale (click press / drag hold) + subtle horizontal velocity bank
+          const pressScale = ag.pressTimer > 0 ? 0.83 : ag.isHoldingDrag ? 0.92 : 1;
+          const bankDeg = clamp(ag.vx * 0.008, -7, 7);
+          ag.innerEl.style.transform = `scale(${pressScale.toFixed(2)}) rotate(${bankDeg.toFixed(1)}deg)`;
+          ag.crosshairEl.classList.toggle(styles.agentCrosshairActive, ag.isDrawingCrosshair);
+          ag.labelEl.classList.toggle(styles.agentLabelFlipped, ag.x > vw - 98);
 
-          // Clamp inside viewport bounds
-          targetX = Math.max(12, Math.min(vw - 78, targetX));
-          targetY = Math.max(12, Math.min(vh - 42, targetY));
-
-          // Curved travel interpolation + smooth damping
-          if (ag.travelT < 1) {
-            ag.travelT = Math.min(1, ag.travelT + dt / ag.travelDur);
-            const et = easeInOutCubic(ag.travelT);
-            const dx = targetX - ag.fromX;
-            const dy = targetY - ag.fromY;
-            const bend = Math.sin(Math.PI * et) * 0.16 * ag.bendSign;
-            ag.x = ag.fromX + dx * et - dy * bend;
-            ag.y = ag.fromY + dy * et + dx * bend;
-          } else {
-            const follow = 1 - Math.exp(-(inFinaleRing ? 6.5 : 14) * dt);
-            ag.x += (targetX - ag.x) * follow;
-            ag.y += (targetY - ag.y) * follow;
-          }
-
-          ag.labelAlpha += (ag.targetLabelAlpha - ag.labelAlpha) * 0.16;
+          ag.labelAlpha += (ag.targetLabelAlpha - ag.labelAlpha) * 0.18;
           ag.el.style.transform = `translate3d(${ag.x.toFixed(1)}px, ${ag.y.toFixed(1)}px, 0)`;
           ag.labelEl.style.opacity = ag.labelAlpha.toFixed(2);
         }
@@ -989,10 +1399,13 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const onPointerMove = (e: PointerEvent) => {
       if (e.pointerType !== "mouse" || !finePointer || !userCursorRootRef.current) {
+        userPointerRef.current.active = false;
         userCursorRootRef.current?.classList.remove(styles.userCursorVisible);
         document.documentElement.removeAttribute("data-custom-cursor");
         return;
       }
+
+      userPointerRef.current = { x: e.clientX, y: e.clientY, active: true };
 
       const targetNode = e.target as HTMLElement | null;
       const inTextInput = targetNode?.closest(
@@ -1029,6 +1442,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const onMouseOut = (e: MouseEvent) => {
       if (!e.relatedTarget) {
+        userPointerRef.current.active = false;
         userCursorRootRef.current?.classList.remove(
           styles.userCursorVisible,
           styles.userCursorDown,
@@ -1198,7 +1612,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <SwarmContext.Provider value={contextValue}>
       {children}
 
-      {/* Swarm Overlay Portal: Selection Frames, Celebrations & 8 Figma Agents */}
+      {/* Swarm Overlay Portal: Selection Frames, Smart Guides, Celebrations & 8 Figma Agents */}
       <div className={styles.overlayRoot} data-swarm-ignore="true" aria-hidden="true">
         <div ref={selLayerRef} className={styles.selLayer} />
         <div ref={fxLayerRef} className={styles.fxLayer} />

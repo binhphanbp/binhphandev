@@ -10,6 +10,7 @@ export interface SwarmAgentSpec {
   skill: SwarmSkill;
   color: string;
   ink: string;
+  homeSpot: [number, number];
 }
 
 export interface SwarmSlot {
@@ -18,8 +19,10 @@ export interface SwarmSlot {
   kind: SwarmSlotKind;
   sectionIndex: number;
   docTop: number;
+  wave: 0 | 1 | 2;
+  rightAligned?: boolean;
   textSnapshot?: string;
-  dragFrom?: { dx: number; dy: number; tiltDeg: number };
+  dragFrom?: { dx: number; dy: number; bend: number; tiltDeg: number };
 }
 
 export interface SwarmSectionGroup {
@@ -44,12 +47,12 @@ export interface SwarmContextValue {
 }
 
 export const SWARM_AGENTS: SwarmAgentSpec[] = [
-  { id: 0, name: "Frame", skill: "draw", color: "#F85023", ink: "#FFFFFF" },
-  { id: 1, name: "Kern", skill: "type", color: "#7B61FF", ink: "#FFFFFF" },
-  { id: 2, name: "Snap", skill: "move", color: "#0D99FF", ink: "#FFFFFF" },
-  { id: 3, name: "Hue", skill: "color", color: "#14AE5C", ink: "#FFFFFF" },
-  { id: 4, name: "Glyph", skill: "type", color: "#E83E8C", ink: "#FFFFFF" },
-  { id: 5, name: "Align", skill: "move", color: "#F59E0B", ink: "#18181B" },
-  { id: 6, name: "Grid", skill: "draw", color: "#0891B2", ink: "#FFFFFF" },
-  { id: 7, name: "Nudge", skill: "move", color: "#65A30D", ink: "#FFFFFF" },
+  { id: 0, name: "Frame", skill: "draw", color: "#F85023", ink: "#FFFFFF", homeSpot: [0.14, 0.18] },
+  { id: 1, name: "Kern", skill: "type", color: "#7B61FF", ink: "#FFFFFF", homeSpot: [0.81, 0.21] },
+  { id: 2, name: "Snap", skill: "move", color: "#0D99FF", ink: "#FFFFFF", homeSpot: [0.1, 0.47] },
+  { id: 3, name: "Hue", skill: "color", color: "#14AE5C", ink: "#FFFFFF", homeSpot: [0.85, 0.5] },
+  { id: 4, name: "Glyph", skill: "type", color: "#E83E8C", ink: "#FFFFFF", homeSpot: [0.16, 0.66] },
+  { id: 5, name: "Align", skill: "move", color: "#F59E0B", ink: "#18181B", homeSpot: [0.79, 0.65] },
+  { id: 6, name: "Grid", skill: "draw", color: "#0891B2", ink: "#FFFFFF", homeSpot: [0.28, 0.12] },
+  { id: 7, name: "Nudge", skill: "move", color: "#65A30D", ink: "#FFFFFF", homeSpot: [0.67, 0.13] },
 ];
