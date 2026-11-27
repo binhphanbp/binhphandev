@@ -1,12 +1,12 @@
-import { About, Blog, Gallery, Home, Newsletter, Person, Social, Work } from "@/types";
+import type { About, Blog, Gallery, Home, Newsletter, Person, Social, Work } from "@/types";
 import { Line, Row, Text } from "@once-ui-system/core";
 
 const person: Person = {
   firstName: "Binh",
   lastName: "Phan",
-  name: `Binh Phan`,
+  name: "Binh Phan",
   role: "Frontend Developer",
-  avatar: "/images/avatar.jpg",
+  avatar: "/images/binh-avatar.jpg",
   email: "binhphan.dev@proton.me",
   location: "Asia/Ho_Chi_Minh", // Expecting the IANA time zone identifier, e.g., 'Europe/Vienna'
   languages: ["Vietnamese", "English"], // optional: Leave the array empty if you don't want to display languages
@@ -56,7 +56,7 @@ const social: Social = [
 
 const home: Home = {
   path: "/",
-  image: "/images/og/home.jpg",
+  image: `/api/og/generate?title=${encodeURIComponent(`${person.name}'s Portfolio`)}`,
   label: "Home",
   title: `${person.name}'s Portfolio`,
   description: `Portfolio website showcasing my work as a ${person.role}`,
@@ -76,8 +76,13 @@ const home: Home = {
   },
   subline: (
     <>
-    I'm Binh, a passionate <Text as="span" size="xl" weight="strong">Frontend Developer</Text> based in Vietnam, specializing in building <br /> modern, responsive, and user-friendly web applications.
-</>
+      I'm Binh, a passionate{" "}
+      <Text as="span" size="xl" weight="strong">
+        Frontend Developer
+      </Text>{" "}
+      based in Vietnam, specializing in building <br /> modern, responsive, and user-friendly web
+      applications.
+    </>
   ),
 };
 
@@ -102,13 +107,11 @@ const about: About = {
     title: "Introduction",
     description: (
       <>
-        Binh Phan is a Ho Chi Minh City-based frontend developer with a strong
-        passion for building clean, performant, and user-centric web
-        applications. With hands-on experience in React, Next.js, and modern
-        frontend technologies, he thrives on transforming complex requirements
-        into intuitive digital experiences. Always eager to learn and grow, he
-        continuously explores new tools and best practices to deliver
-        high-quality code.
+        Binh Phan is a Ho Chi Minh City-based frontend developer with a strong passion for building
+        clean, performant, and user-centric web applications. With hands-on experience in React,
+        Next.js, and modern frontend technologies, he thrives on transforming complex requirements
+        into intuitive digital experiences. Always eager to learn and grow, he continuously explores
+        new tools and best practices to deliver high-quality code.
       </>
     ),
   },
@@ -121,15 +124,14 @@ const about: About = {
         timeframe: "Aug 2025 - Dec 2025",
         role: "Intern Frontend Developer",
         achievements: [
-          <>
-            Collaborated with the development team to build and maintain
-            responsive web interfaces using React and modern frontend frameworks.
-          </>,
-          <>
-            Gained hands-on experience in component-driven development, state
-            management, and integrating RESTful APIs into production-level
-            applications.
-          </>,
+          <span key="cfd-1">
+            Collaborated with the development team to build and maintain responsive web interfaces
+            using React and modern frontend frameworks.
+          </span>,
+          <span key="cfd-2">
+            Gained hands-on experience in component-driven development, state management, and
+            integrating RESTful APIs into production-level applications.
+          </span>,
         ],
         images: [],
       },
@@ -157,9 +159,8 @@ const about: About = {
         title: "React & Next.js",
         description: (
           <>
-            Building modern, performant web applications with React ecosystem
-            including Redux for state management and Next.js for server-side
-            rendering.
+            Building modern, performant web applications with React ecosystem including Redux for
+            state management and Next.js for server-side rendering.
           </>
         ),
         tags: [
@@ -183,8 +184,8 @@ const about: About = {
         title: "TypeScript & JavaScript",
         description: (
           <>
-            Proficient in both JavaScript and TypeScript for building type-safe,
-            scalable frontend and full-stack applications.
+            Proficient in both JavaScript and TypeScript for building type-safe, scalable frontend
+            and full-stack applications.
           </>
         ),
         tags: [
@@ -204,8 +205,8 @@ const about: About = {
         title: "Styling & UI",
         description: (
           <>
-            Creating beautiful, responsive interfaces with TailwindCSS and
-            modern CSS techniques for pixel-perfect designs.
+            Creating beautiful, responsive interfaces with TailwindCSS and modern CSS techniques for
+            pixel-perfect designs.
           </>
         ),
         tags: [
@@ -221,8 +222,8 @@ const about: About = {
         title: "Backend & Database",
         description: (
           <>
-            Familiar with Node.js, Express.js for server-side development and
-            working with databases including MongoDB, MySQL, and PostgreSQL.
+            Familiar with Node.js, Express.js for server-side development and working with databases
+            including MongoDB, MySQL, and PostgreSQL.
           </>
         ),
         tags: [
