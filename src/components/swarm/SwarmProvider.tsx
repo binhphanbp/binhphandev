@@ -89,6 +89,7 @@ interface SlotRuntime {
   guideHEl: HTMLDivElement | null;
   guideBadgeEl: HTMLDivElement | null;
   lastCharCount: number;
+  appliedStyleEpoch: number;
 }
 
 function easeOutCubic(t: number): number {
@@ -128,6 +129,24 @@ function findTextStyleHost(el: HTMLElement): HTMLElement {
     (el.firstElementChild as HTMLElement | null) ??
     el
   );
+}
+
+function syncGhostTypography(ghost: HTMLDivElement, slotEl: HTMLElement) {
+  const textHost = findTextStyleHost(slotEl);
+  const cs = window.getComputedStyle(textHost);
+  ghost.style.fontFamily = cs.fontFamily;
+  ghost.style.fontSize = cs.fontSize;
+  ghost.style.fontWeight = cs.fontWeight;
+  ghost.style.fontStyle = cs.fontStyle;
+  ghost.style.lineHeight = cs.lineHeight;
+  ghost.style.letterSpacing = cs.letterSpacing;
+  ghost.style.wordSpacing = cs.wordSpacing;
+  ghost.style.textTransform = cs.textTransform;
+  ghost.style.textAlign = cs.textAlign;
+  ghost.style.color = cs.color;
+  if ("textWrap" in cs) {
+    ghost.style.setProperty("text-wrap", cs.getPropertyValue("text-wrap"));
+  }
 }
 
 // Compute the exact live viewport coordinates where an agent clicks down to begin a slot
@@ -382,6 +401,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const agentsRef = useRef<AgentRuntime[]>([]);
   const fxBudgetRef = useRef<number>(0);
   const sharedRangeRef = useRef<Range | null>(null);
+  const styleSyncEpochRef = useRef<number>(1);
   const userPointerRef = useRef<{ x: number; y: number; active: boolean }>({
     x: -999,
     y: -999,
@@ -645,6 +665,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             guideHEl: null,
             guideBadgeEl: null,
             lastCharCount: 0,
+            appliedStyleEpoch: 0,
           });
         }
       }
@@ -968,23 +989,10 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
               // Mount pure-inline split-span text ghost + Range-tracked caret bar
               if (sr.slot.kind === "type" && sr.slot.textSnapshot) {
-                const textHost = findTextStyleHost(sr.slot.el);
-                const cs = window.getComputedStyle(textHost);
                 const ghost = document.createElement("div");
                 ghost.className = styles.typeGhost;
-                ghost.style.fontFamily = cs.fontFamily;
-                ghost.style.fontSize = cs.fontSize;
-                ghost.style.fontWeight = cs.fontWeight;
-                ghost.style.fontStyle = cs.fontStyle;
-                ghost.style.lineHeight = cs.lineHeight;
-                ghost.style.letterSpacing = cs.letterSpacing;
-                ghost.style.wordSpacing = cs.wordSpacing;
-                ghost.style.textTransform = cs.textTransform;
-                ghost.style.textAlign = cs.textAlign;
-                ghost.style.color = cs.color;
-                if ("textWrap" in cs) {
-                  ghost.style.setProperty("text-wrap", cs.getPropertyValue("text-wrap"));
-                }
+                syncGhostTypography(ghost, sr.slot.el);
+                sr.appliedStyleEpoch = styleSyncEpochRef.current;
 
                 // Pure inline spans ONLY (no inline-block in between!) so word wrapping never shifts
                 const typedSpan = document.createElement("span");
@@ -1100,14 +1108,21 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
             // Pin cursor arrow 1:1 onto the card grab point carrying it into place
             if (ag) {
-              const nextX = clamp(liveR.left + sr.grabOffsetX, 12, vw - 76);
-              const nextY = clamp(liveR.top + sr.grabOffsetY, 12, vh - 40);
+              const grabX = Math.min(sr.grabOffsetX, Math.max(12, liveR.width - 12));
+              const grabY = Math.min(sr.grabOffsetY, Math.max(10, liveR.height - 10));
+              const nextX = clamp(liveR.left + grabX, 12, vw - 76);
+              const nextY = clamp(liveR.top + grabY, 12, vh - 40);
               ag.vx = dt > 0 ? (nextX - ag.x) / dt : 0;
               ag.x = nextX;
               ag.y = nextY;
               ag.targetLabelAlpha = 1;
             }
           } else if (sr.slot.kind === "type" && sr.slot.textSnapshot && sr.ghostEl) {
+            if (sr.appliedStyleEpoch !== styleSyncEpochRef.current) {
+              sr.appliedStyleEpoch = styleSyncEpochRef.current;
+              syncGhostTypography(sr.ghostEl, el);
+            }
+
             const text = sr.slot.textSnapshot;
             const charCount = Math.min(text.length, Math.max(1, Math.round(sr.t * text.length)));
             if (charCount !== sr.lastCharCount) {
@@ -1512,6 +1527,16 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
+    const onStyleInvalidate = () => {
+      styleSyncEpochRef.current += 1;
+    };
+
+    const themeObserver = new MutationObserver(onStyleInvalidate);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class"],
+    });
+
     window.addEventListener("pointermove", onPointerMove, { passive: true });
     window.addEventListener("pointerdown", onPointerDown, { passive: true });
     window.addEventListener("pointerup", onPointerUp, { passive: true });
@@ -1522,8 +1547,10 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchmove", pauseAutoOnManualScroll, { passive: true });
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", onStyleInvalidate, { passive: true });
 
     return () => {
+      themeObserver.disconnect();
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointerup", onPointerUp);
@@ -1534,6 +1561,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchmove", pauseAutoOnManualScroll);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", onStyleInvalidate);
       document.documentElement.removeAttribute("data-custom-cursor");
       document.documentElement.removeAttribute("data-swarm-autoscroll");
     };
