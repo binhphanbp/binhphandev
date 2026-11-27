@@ -293,8 +293,13 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     autoScrollRef.current = autoScrolling;
-    if (autoScrolling && typeof window !== "undefined") {
-      scrollAccumRef.current = window.scrollY;
+    if (typeof document !== "undefined") {
+      if (autoScrolling) {
+        document.documentElement.setAttribute("data-swarm-autoscroll", "true");
+        scrollAccumRef.current = window.scrollY;
+      } else {
+        document.documentElement.removeAttribute("data-swarm-autoscroll");
+      }
     }
   }, [autoScrolling]);
 
@@ -626,7 +631,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const scrolledPast = rect.bottom < 40;
           const speedBoost = scrolledPast ? 2.8 : 1.0;
 
-          if (rect.top < vh * 0.78 && rect.bottom > 40) {
+          if (rect.top < vh * 0.56 && rect.bottom > 60) {
             activeInViewportCount += 1;
           }
 
@@ -843,12 +848,12 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               }
             }
 
-            // If this completed the entire section, grant a comfortable reading pause before scrolling further
+            // Grant a brief breath after completing a section before gliding further
             const remainingInSec = allSlots.some(
               (other) => other.slot.sectionIndex === sr.slot.sectionIndex && other.state !== "done",
             );
             if (!remainingInSec) {
-              holdUntilRef.current = Math.max(holdUntilRef.current, now + 1150);
+              holdUntilRef.current = Math.max(holdUntilRef.current, now + 480);
             }
           }
         }
@@ -867,17 +872,25 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
         }
 
-        // 2. Smooth Auto-Scroll Controller
+        // 2. Smooth 60fps Auto-Scroll Controller (bypasses Once UI CSS scroll-behavior: smooth)
         if (autoScrollRef.current && !modalOpen) {
           if (scrollY >= maxScroll - 4 && doneCount >= allSlots.length) {
             // Reached the very bottom Finale -> stop auto-scroll cleanly
             autoScrollRef.current = false;
             setAutoScrolling(false);
           } else if (now >= holdUntilRef.current) {
-            // Pause or slow gently while cursors are actively building in the sweet spot
-            const scrollSpeed = activeInViewportCount > 0 ? vh * 0.032 : vh * 0.165;
+            // Steady browse glide; slow down gently while focal pieces in upper viewport are mid-build
+            const scrollSpeed =
+              activeInViewportCount >= 3
+                ? vh * 0.055
+                : activeInViewportCount > 0
+                  ? vh * 0.105
+                  : vh * 0.185;
             scrollAccumRef.current = Math.min(maxScroll, scrollAccumRef.current + scrollSpeed * dt);
-            window.scrollTo(0, scrollAccumRef.current);
+            window.scrollTo({
+              top: scrollAccumRef.current,
+              behavior: "instant" as ScrollBehavior,
+            });
           } else {
             scrollAccumRef.current = window.scrollY;
           }
@@ -1023,6 +1036,13 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     };
 
+    const onWheel = (e: WheelEvent) => {
+      if (autoScrollRef.current && Math.abs(e.deltaY) >= 8) {
+        autoScrollRef.current = false;
+        setAutoScrolling(false);
+      }
+    };
+
     const pauseAutoOnManualScroll = () => {
       if (autoScrollRef.current) {
         autoScrollRef.current = false;
@@ -1047,7 +1067,7 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     window.addEventListener("pointerup", onPointerUp, { passive: true });
     window.addEventListener("pointercancel", onPointerUp, { passive: true });
     document.addEventListener("mouseout", onMouseOut, { passive: true });
-    window.addEventListener("wheel", pauseAutoOnManualScroll, { passive: true });
+    window.addEventListener("wheel", onWheel, { passive: true });
     window.addEventListener("touchmove", pauseAutoOnManualScroll, { passive: true });
     window.addEventListener("keydown", onKeyDown);
 
@@ -1057,10 +1077,11 @@ export const SwarmProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
       document.removeEventListener("mouseout", onMouseOut);
-      window.removeEventListener("wheel", pauseAutoOnManualScroll);
+      window.removeEventListener("wheel", onWheel);
       window.removeEventListener("touchmove", pauseAutoOnManualScroll);
       window.removeEventListener("keydown", onKeyDown);
       document.documentElement.removeAttribute("data-custom-cursor");
+      document.documentElement.removeAttribute("data-swarm-autoscroll");
     };
   }, []);
 

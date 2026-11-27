@@ -11,6 +11,12 @@
   pointer-events: auto !important;
 }
 
+/* Override Once UI's global `html { scroll-behavior: smooth }` during rAF Auto-scroll so 60fps scrollTo never stalls */
+html[data-swarm-autoscroll="true"],
+html[data-swarm-autoscroll="true"] body {
+  scroll-behavior: auto !important;
+}
+
 /* Hide underlying page chrome while Entrance Gate is open */
 html[data-swarm-gate="true"] header,
 html[data-swarm-gate="true"] main,
