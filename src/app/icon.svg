@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="6" y1="4" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="100%" stop-color="#060911" />
+    </linearGradient>
+    <linearGradient id="bpGrad" x1="13" y1="18" x2="51" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="65%" stop-color="#e0f2fe" />
+      <stop offset="100%" stop-color="#67e8f9" />
+    </linearGradient>
+    <linearGradient id="cursorGrad" x1="42" y1="40" x2="59" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Obsidian Canvas -->
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#bgGrad)" />
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="14.25" stroke="#1e293b" stroke-width="1.5" />
+
+  <!-- Blueprint Selection Frame -->
+  <rect
+    x="9"
+    y="9"
+    width="46"
+    height="46"
+    rx="3"
+    stroke="#06b6d4"
+    stroke-opacity="0.55"
+    stroke-width="1.5"
+    stroke-dasharray="4 3"
+  />
+
+  <!-- Figma Corner Selection Handles -->
+  <rect x="6.5" y="6.5" width="5" height="5" rx="1" fill="#090d16" stroke="#22d3ee" stroke-width="1.5" />
+  <rect x="52.5" y="6.5" width="5" height="5" rx="1" fill="#090d16" stroke="#22d3ee" stroke-width="1.5" />
+  <rect x="6.5" y="52.5" width="5" height="5" rx="1" fill="#090d16" stroke="#22d3ee" stroke-width="1.5" />
+
+  <!-- Bold Geometric BP Monogram -->
+  <path
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M13 19H23.5C27.4 19 30 21.2 30 24.8C30 27.3 28.6 29.2 26.4 30.1C29.2 30.9 31 33.1 31 36.2C31 40.4 28 43 23.5 43H13V19ZM18.5 23.4V28.3H22.8C24.4 28.3 25.4 27.4 25.4 25.8C25.4 24.3 24.4 23.4 22.8 23.4H18.5ZM18.5 32.5V38.4H23.2C25.1 38.4 26.2 37.4 26.2 35.5C26.2 33.6 25.1 32.5 23.2 32.5H18.5Z"
+    fill="url(#bpGrad)"
+  />
+  <path
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M34 19H44C48.4 19 51.2 21.8 51.2 26.2C51.2 30.6 48.4 33.4 44 33.4H39.5V43H34V19ZM39.5 23.6V28.9H43.5C45.4 28.9 46.5 27.9 46.5 26.2C46.5 24.6 45.4 23.6 43.5 23.6H39.5Z"
+    fill="url(#bpGrad)"
+  />
+
+  <!-- Signature Swarm Multiplayer Cursor -->
+  <path
+    d="M42.5 40.5L48.6 57.5L51.8 50.6L58.8 47.6L42.5 40.5Z"
+    fill="url(#cursorGrad)"
+    stroke="#ffffff"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+</svg>
